@@ -113,14 +113,14 @@ export function KepalaSpiDashboardPage() {
           {recentPkpt.map((p) => (
             <div
               key={p.pkptId}
-              className="grid grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1.6fr_0.8fr_1fr_0.8fr_auto]"
+              className="grid min-w-0 grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1.6fr_0.8fr_1fr_0.8fr_auto]"
             >
-              <div className="font-semibold text-slate-800">{p.namaPkpt}</div>
-              <div className="text-slate-600">{p.tahunAnggaran}</div>
-              <div className="text-xs text-slate-500">
+              <div className="min-w-0 truncate font-semibold text-slate-800">{p.namaPkpt}</div>
+              <div className="truncate text-slate-600">{p.tahunAnggaran}</div>
+              <div className="min-w-0 truncate text-xs text-slate-500">
                 {p.tanggalMulai} &ndash; {p.tanggalSelesai}
               </div>
-              <div className="text-slate-600">{p.totalObjek} objek</div>
+              <div className="truncate text-slate-600">{p.totalObjek} objek</div>
               <span
                 className={`inline-flex w-fit justify-self-end rounded-lg px-3 py-1 text-xs font-semibold ${statusBadgeClass(p.status)}`}
               >
@@ -154,15 +154,15 @@ export function KepalaSpiDashboardPage() {
           {recentSta.map((s) => (
             <div
               key={s.penugasanId}
-              className="grid grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1fr_1.4fr_1fr_1fr_auto]"
+              className="grid min-w-0 grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1fr_1.4fr_1fr_1fr_auto]"
             >
-              <div className="font-semibold text-slate-800">{s.nomorSta}</div>
-              <div className="text-slate-600">
+              <div className="min-w-0 truncate font-semibold text-slate-800">{s.nomorSta}</div>
+              <div className="min-w-0 truncate text-slate-600">
                 {s.objekAudit}
-                <div className="text-xs text-slate-400">{s.unitKerja}</div>
+                <div className="truncate text-xs text-slate-400">{s.unitKerja}</div>
               </div>
-              <div className="text-slate-600">{s.ketuaTim}</div>
-              <div className="text-slate-500">{s.tanggalTerbit}</div>
+              <div className="truncate text-slate-600">{s.ketuaTim}</div>
+              <div className="truncate text-slate-500">{s.tanggalTerbit}</div>
               <span
                 className={`inline-flex w-fit justify-self-end rounded-lg px-3 py-1 text-xs font-semibold ${statusBadgeClass(s.statusApproval)}`}
               >

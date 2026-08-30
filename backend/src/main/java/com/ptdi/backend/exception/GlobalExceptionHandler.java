@@ -1,5 +1,6 @@
 package com.ptdi.backend.exception;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.AuthenticationException;
@@ -41,5 +42,23 @@ public class GlobalExceptionHandler {
                 ex.getMessage()
         );
         return ResponseEntity.status(ex.getStatus()).body(body);
+    }
+
+    /**
+     * Jaring pengaman kalau ada operasi delete/save lain yang masih
+     * melanggar constraint foreign key di database (mis. mencoba hard-delete
+     * baris yang masih direferensikan tabel lain) -- sebelumnya jatuh ke
+     * error 500 default Spring tanpa pesan, sehingga di frontend terlihat
+     * seperti "tidak terjadi apa-apa".
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        ErrorResponse body = new ErrorResponse(
+                Instant.now(),
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                "Data tidak dapat dihapus/diubah karena masih terhubung dengan data lain."
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 }

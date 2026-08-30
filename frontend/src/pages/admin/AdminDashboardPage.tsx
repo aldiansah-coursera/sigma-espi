@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Users, Clock, ShieldCheck, Check, X, Pencil, Trash2, UserCircle2 } from 'lucide-react'
-import { Sidebar } from '../../components/ui/Sidebar'
+import { AppShell } from '../../components/ui/AppShell'
 import type { SidebarNavItem } from '../../components/ui/Sidebar'
-import { Topbar } from '../../components/ui/Topbar'
 import { useAuth } from '../../context/useAuth'
+import { extractErrorMessage } from '../../lib/api'
 import { StatCard } from '../../components/ui/StatCard'
 import { Switch } from '../../components/ui/Switch'
 import type { ActiveUser, PendingUser } from '../../services/userService'
@@ -117,6 +117,8 @@ export function AdminDashboardPage() {
           aktif: true,
         },
       ])
+    } catch (err) {
+      window.alert(extractErrorMessage(err, 'Gagal menyetujui pendaftaran user.'))
     } finally {
       setBusyId(null)
     }
@@ -127,6 +129,8 @@ export function AdminDashboardPage() {
     try {
       await rejectPendingUser(id)
       setPendingUsers((prev) => prev.filter((u) => u.id !== id))
+    } catch (err) {
+      window.alert(extractErrorMessage(err, 'Gagal menolak pendaftaran user.'))
     } finally {
       setBusyId(null)
     }
@@ -134,7 +138,14 @@ export function AdminDashboardPage() {
 
   async function handleToggle(id: number) {
     setActiveUsers((prev) => prev.map((u) => (u.id === id ? { ...u, aktif: !u.aktif } : u)))
-    await toggleActiveUserStatus(id)
+    try {
+      await toggleActiveUserStatus(id)
+    } catch (err) {
+      // Balikin lagi optimistic update di atas kalau request-nya gagal,
+      // supaya switch-nya tidak "nyangkut" di posisi yang salah.
+      setActiveUsers((prev) => prev.map((u) => (u.id === id ? { ...u, aktif: !u.aktif } : u)))
+      window.alert(extractErrorMessage(err, 'Gagal mengubah status aktif user.'))
+    }
   }
 
   function startEditRole(id: number, currentRole: string, currentUnit: string) {
@@ -156,6 +167,8 @@ export function AdminDashboardPage() {
         prev.map((u) => (u.id === id ? { ...u, role: draftRole, unitKerja: draftUnit } : u)),
       )
       setEditingRoleId(null)
+    } catch (err) {
+      window.alert(extractErrorMessage(err, 'Gagal menyimpan perubahan role/unit user.'))
     } finally {
       setBusyId(null)
     }
@@ -167,6 +180,8 @@ export function AdminDashboardPage() {
     try {
       await deleteActiveUser(id)
       setActiveUsers((prev) => prev.filter((u) => u.id !== id))
+    } catch (err) {
+      window.alert(extractErrorMessage(err, 'Gagal menghapus akun user.'))
     } finally {
       setBusyId(null)
     }
@@ -177,20 +192,15 @@ export function AdminDashboardPage() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-slate-50">
-      <Sidebar navItems={ADMIN_NAV_ITEMS} />
-
-      <div className="ml-72 flex h-screen min-w-0 flex-col overflow-hidden">
-        <Topbar
-          searchValue={searchQuery}
-          onSearchChange={setSearchQuery}
-          searchPlaceholder="Cari NIP atau Nama"
-          pendingCount={pendingUsers.length}
-          hasUnreadPending={hasUnreadPending}
-          onNotifOpen={markPendingNotifSeen}
-        />
-
-        <main className="flex-1 space-y-8 overflow-y-auto p-6 sm:p-8">
+    <AppShell
+      navItems={ADMIN_NAV_ITEMS}
+      searchValue={searchQuery}
+      onSearchChange={setSearchQuery}
+      searchPlaceholder="Cari NIP atau Nama"
+      pendingCount={pendingUsers.length}
+      hasUnreadPending={hasUnreadPending}
+      onNotifOpen={markPendingNotifSeen}
+    >
           <div>
             <h1 className="text-2xl font-bold text-blue-950 sm:text-3xl">
               Persetujuan &amp; Manajemen Hak Akses User (RBAC)
@@ -242,15 +252,15 @@ export function AdminDashboardPage() {
               {filteredPending.map((u) => (
                 <div
                   key={u.id}
-                  className="grid grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1.2fr_1.6fr_1fr_0.9fr_0.8fr_auto]"
+                  className="grid min-w-0 grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1.2fr_1.6fr_1fr_0.9fr_0.8fr_auto]"
                 >
-                  <div>
-                    <div className="font-semibold text-slate-800">{u.nama}</div>
-                    <div className="text-xs text-slate-400">{u.nip}</div>
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-slate-800">{u.nama}</div>
+                    <div className="truncate text-xs text-slate-400">{u.nip}</div>
                   </div>
-                  <div>
-                    <div className="text-slate-700">{u.email}</div>
-                    <div className="text-xs text-slate-400">{u.noHp}</div>
+                  <div className="min-w-0">
+                    <div className="truncate text-slate-700">{u.email}</div>
+                    <div className="truncate text-xs text-slate-400">{u.noHp}</div>
                   </div>
                   <select
                     value={u.unitKerja}
@@ -342,20 +352,20 @@ export function AdminDashboardPage() {
               {filteredActive.map((u) => (
                 <div
                   key={u.id}
-                  className="grid grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1.3fr_1.6fr_1fr_0.9fr_0.8fr_0.8fr_auto]"
+                  className="grid min-w-0 grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1.3fr_1.6fr_1fr_0.9fr_0.8fr_0.8fr_auto]"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
                     <UserCircle2 size={32} className="shrink-0 text-slate-300" />
-                    <div>
-                      <div className="font-semibold text-slate-800">{u.nama}</div>
-                      <div className="text-xs text-slate-400">
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-slate-800">{u.nama}</div>
+                      <div className="truncate text-xs text-slate-400">
                         {u.nip} - {u.role}
                       </div>
                     </div>
                   </div>
-                  <div>
-                    <div className="text-slate-700">{u.email}</div>
-                    <div className="text-xs text-slate-400">{u.noHp}</div>
+                  <div className="min-w-0">
+                    <div className="truncate text-slate-700">{u.email}</div>
+                    <div className="truncate text-xs text-slate-400">{u.noHp}</div>
                   </div>
                   <div>
                     {editingRoleId === u.id ? (
@@ -442,8 +452,6 @@ export function AdminDashboardPage() {
             </div>
           </section>
 
-        </main>
-      </div>
-    </div>
+    </AppShell>
   )
 }

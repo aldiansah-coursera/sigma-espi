@@ -332,17 +332,17 @@ export function PersetujuanPkptPage() {
           {filteredPkpt.map((p) => (
             <div
               key={p.pkptId}
-              className="grid grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1.6fr_0.7fr_1fr_1fr_0.8fr_auto]"
+              className="grid min-w-0 grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1.6fr_0.7fr_1fr_1fr_0.8fr_auto]"
             >
-              <div>
-                <div className="font-semibold text-slate-800">{p.namaPkpt}</div>
-                <div className="text-xs text-slate-400">{p.totalObjek} objek pengawasan</div>
+              <div className="min-w-0">
+                <div className="truncate font-semibold text-slate-800">{p.namaPkpt}</div>
+                <div className="truncate text-xs text-slate-400">{p.totalObjek} objek pengawasan</div>
               </div>
-              <div className="text-slate-600">{p.tahunAnggaran}</div>
-              <div className="text-xs text-slate-500">
+              <div className="truncate text-slate-600">{p.tahunAnggaran}</div>
+              <div className="min-w-0 truncate text-xs text-slate-500">
                 {p.tanggalMulai} &ndash; {p.tanggalSelesai}
               </div>
-              <div className="text-slate-600">{p.dibuatOleh}</div>
+              <div className="truncate text-slate-600">{p.dibuatOleh}</div>
               <span
                 className={`inline-flex w-fit rounded-lg px-3 py-1 text-xs font-semibold ${statusBadgeClass(p.status)}`}
               >

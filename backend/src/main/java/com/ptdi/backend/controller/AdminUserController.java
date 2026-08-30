@@ -27,6 +27,13 @@ public class AdminUserController {
     private static final String STATUS_PENDING = "Pending";
     private static final String STATUS_AKTIF = "Aktif";
     private static final String STATUS_NONAKTIF = "Nonaktif";
+    // Status "arsip" saat Admin menghapus akun lewat tombol Hapus di Kelola
+    // User -- BUKAN hard delete, supaya riwayat data yang masih terhubung ke
+    // user ini (mis. PKPT/STA/LHA yang pernah dia buat/setujui, log audit)
+    // tidak ikut hilang atau membuat query gagal karena constraint FK.
+    // Dikecualikan dari getActiveUsers() & getPendingUsers() sehingga tetap
+    // tampak "terhapus" di UI.
+    private static final String STATUS_DIHAPUS = "Dihapus";
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -136,7 +143,12 @@ public class AdminUserController {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Gunakan aksi tolak untuk pendaftar yang masih menunggu persetujuan");
         }
-        userRepository.delete(user);
+        // Soft-delete (lihat komentar STATUS_DIHAPUS) -- sebelumnya pakai
+        // userRepository.delete(user) yang hard-delete, dan gagal diam-diam
+        // (500 tanpa pesan jelas) kalau user ini pernah membuat/menyetujui
+        // PKPT/STA/LHA karena data itu masih mereferensikan user_id-nya.
+        user.setStatus(STATUS_DIHAPUS);
+        userRepository.save(user);
         return ResponseEntity.ok().build();
     }
 

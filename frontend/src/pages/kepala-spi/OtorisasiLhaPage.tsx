@@ -126,12 +126,12 @@ export function OtorisasiLhaPage() {
           {filteredLha.map((l) => (
             <div
               key={l.lhaId}
-              className="grid grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1.1fr_1.3fr_1fr_0.8fr_0.8fr_auto]"
+              className="grid min-w-0 grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1.1fr_1.3fr_1fr_0.8fr_0.8fr_auto]"
             >
-              <div className="font-semibold text-blue-700">{l.nomorLha}</div>
-              <div className="text-slate-700">{l.objekAudit}</div>
-              <div className="text-slate-600">{l.ketuaTim}</div>
-              <div className="text-slate-600">{l.anggotaTimCount} Anggota</div>
+              <div className="truncate font-semibold text-blue-700">{l.nomorLha}</div>
+              <div className="min-w-0 truncate text-slate-700">{l.objekAudit}</div>
+              <div className="truncate text-slate-600">{l.ketuaTim}</div>
+              <div className="truncate text-slate-600">{l.anggotaTimCount} Anggota</div>
               <span className={`inline-flex w-fit rounded-lg px-3 py-1 text-xs font-semibold ${statusBadgeClass(l.status)}`}>
                 {l.status}
               </span>

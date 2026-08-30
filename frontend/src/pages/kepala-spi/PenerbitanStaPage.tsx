@@ -215,18 +215,18 @@ export function PenerbitanStaPage() {
           {filteredSta.map((s) => (
             <div
               key={s.penugasanId}
-              className="grid grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1fr_1.4fr_1fr_1fr_0.8fr_auto]"
+              className="grid min-w-0 grid-cols-2 items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm sm:grid-cols-[1fr_1.4fr_1fr_1fr_0.8fr_auto]"
             >
-              <div className="font-semibold text-slate-800">{s.nomorSta}</div>
-              <div>
-                <div className="text-slate-700">{s.objekAudit}</div>
-                <div className="text-xs text-slate-400">
+              <div className="truncate font-semibold text-slate-800">{s.nomorSta}</div>
+              <div className="min-w-0">
+                <div className="truncate text-slate-700">{s.objekAudit}</div>
+                <div className="truncate text-xs text-slate-400">
                   {s.unitKerja} &middot; {s.periode}
                 </div>
               </div>
-              <div className="text-slate-600">{s.ketuaTim}</div>
-              <div className="text-slate-600">{s.diterbitkanOleh}</div>
-              <div className="text-slate-500">{s.tanggalTerbit}</div>
+              <div className="truncate text-slate-600">{s.ketuaTim}</div>
+              <div className="truncate text-slate-600">{s.diterbitkanOleh}</div>
+              <div className="truncate text-slate-500">{s.tanggalTerbit}</div>
               <span
                 className={`inline-flex w-fit justify-self-end rounded-lg px-3 py-1 text-xs font-semibold ${statusBadgeClass(s.statusApproval)}`}
               >
