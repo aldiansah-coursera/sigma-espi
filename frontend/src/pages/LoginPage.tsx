@@ -113,6 +113,11 @@ export function LoginPage() {
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
+            <div className="mt-2 text-right">
+              <Link to="/forgot-password" className="text-xs font-medium text-blue-100 hover:text-white hover:underline">
+                Lupa password?
+              </Link>
+            </div>
           </div>
 
           <button

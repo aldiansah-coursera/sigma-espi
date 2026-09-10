@@ -14,6 +14,7 @@ interface FormState {
   nomorWhatsapp: string
   unitKerja: string
   password: string
+  confirmPassword: string
 }
 
 const EMPTY_FORM: FormState = {
@@ -23,7 +24,12 @@ const EMPTY_FORM: FormState = {
   nomorWhatsapp: '',
   unitKerja: 'Kantor Pusat',
   password: '',
+  confirmPassword: '',
 }
+
+// Password minimal 8 karakter, ada huruf besar, huruf kecil, dan angka --
+// sesuai masukan review klien soal keamanan password saat pendaftaran.
+const PASSWORD_STRENGTH_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/
 
 type FormErrors = Partial<Record<keyof FormState, string>>
 
@@ -32,8 +38,8 @@ function validate(form: FormState): FormErrors {
 
   if (!form.nip.trim()) {
     errors.nip = 'NIP wajib diisi'
-  } else if (form.nip.replace(/\D/g, '').length < 8) {
-    errors.nip = 'NIP tidak valid'
+  } else if (!/^\d{18}$/.test(form.nip.trim())) {
+    errors.nip = 'NIP harus terdiri dari 18 digit angka (format NIP PNS)'
   }
 
   if (!form.namaLengkap.trim()) {
@@ -56,8 +62,14 @@ function validate(form: FormState): FormErrors {
 
   if (!form.password) {
     errors.password = 'Password wajib diisi'
-  } else if (form.password.length < 8) {
-    errors.password = 'Password minimal 8 karakter'
+  } else if (!PASSWORD_STRENGTH_REGEX.test(form.password)) {
+    errors.password = 'Password minimal 8 karakter, kombinasi huruf besar, huruf kecil, dan angka'
+  }
+
+  if (!form.confirmPassword) {
+    errors.confirmPassword = 'Konfirmasi password wajib diisi'
+  } else if (form.confirmPassword !== form.password) {
+    errors.confirmPassword = 'Konfirmasi password tidak sama dengan password'
   }
 
   return errors
@@ -189,7 +201,7 @@ export function RegisterPage() {
                   label="NIP (Required)"
                   value={form.nip}
                   onChange={(v) => updateField('nip', v)}
-                  placeholder="Masukkan NIP"
+                  placeholder="18 digit angka, contoh: 198501012010011001"
                   error={errors.nip}
                 />
 
@@ -259,6 +271,16 @@ export function RegisterPage() {
                   onChange={(v) => updateField('password', v)}
                   placeholder="Buat Password"
                   error={errors.password}
+                />
+
+                <Field
+                  id="confirmPassword"
+                  label="Konfirmasi Password"
+                  type="password"
+                  value={form.confirmPassword}
+                  onChange={(v) => updateField('confirmPassword', v)}
+                  placeholder="Ulangi Password"
+                  error={errors.confirmPassword}
                 />
 
                 <button

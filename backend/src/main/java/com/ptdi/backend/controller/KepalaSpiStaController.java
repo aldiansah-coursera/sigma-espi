@@ -18,9 +18,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,6 +39,15 @@ import java.util.stream.Collectors;
 public class KepalaSpiStaController {
 
     private static final String STATUS_APPROVED = "Approved";
+    // Sesuai masukan review klien: yang boleh ditugaskan sebagai Ketua Tim
+    // Pemeriksa adalah user dengan role "Auditor" ATAU role "Ketua Tim" --
+    // "Ketua Tim" di sini adalah PERAN dalam satu penugasan STA, jadi tetap
+    // dibuka untuk role RBAC "Auditor" biasa (poin review klien awal), TAPI
+    // juga mencakup akun yang RBAC-nya memang "Ketua Tim" (SIGMA v2 module
+    // Ketua Tim) supaya akun itu betulan bisa punya penugasan STA untuk
+    // mengelola PKA/KKA/LHA-nya sendiri. User yang sama tetap bisa jadi
+    // Auditor biasa di penugasan lain.
+    private static final String ROLE_AUDITOR = "Auditor";
     private static final String ROLE_KETUA_TIM = "Ketua Tim";
     private static final String STATUS_AKTIF = "Aktif";
 
@@ -80,7 +91,8 @@ public class KepalaSpiStaController {
     @GetMapping("/ketua-tim-options")
     public List<UserOption> getKetuaTimOptions() {
         return userRepository.findAll().stream()
-                .filter(u -> u.getRole() != null && ROLE_KETUA_TIM.equals(u.getRole().getNamaRole()))
+                .filter(u -> u.getRole() != null
+                        && (ROLE_AUDITOR.equals(u.getRole().getNamaRole()) || ROLE_KETUA_TIM.equals(u.getRole().getNamaRole())))
                 .filter(u -> STATUS_AKTIF.equals(u.getStatus()))
                 .map(u -> UserOption.builder().id(u.getUserId()).nama(u.getNama()).build())
                 .toList();
@@ -90,6 +102,18 @@ public class KepalaSpiStaController {
     public ResponseEntity<Void> create(@RequestBody CreateStaRequest request, @AuthenticationPrincipal Jwt jwt) {
         if (request.getObjekId() == null || request.getKetuaTimUserId() == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Objek audit dan ketua tim wajib dipilih");
+        }
+        if (!StringUtils.hasText(request.getRuangLingkup()) || !StringUtils.hasText(request.getTargetAudit())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ruang lingkup dan target audit wajib diisi");
+        }
+
+        LocalDate tanggalMulai = parseTanggal(request.getTanggalMulai(), "Tanggal mulai penugasan tidak valid");
+        LocalDate tanggalSelesai = parseTanggal(request.getTanggalSelesai(), "Tanggal selesai penugasan tidak valid");
+        if (tanggalMulai == null || tanggalSelesai == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Jangka waktu penugasan (mulai & selesai) wajib diisi");
+        }
+        if (tanggalSelesai.isBefore(tanggalMulai)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Tanggal selesai tidak boleh sebelum tanggal mulai");
         }
 
         ObjekPengawasan objek = objekPengawasanRepository.findById(request.getObjekId())
@@ -102,6 +126,10 @@ public class KepalaSpiStaController {
                 .objek(objek)
                 .nomorSta(generateNomorSta())
                 .tanggalTerbit(LocalDate.now())
+                .tanggalMulai(tanggalMulai)
+                .tanggalSelesai(tanggalSelesai)
+                .ruangLingkup(request.getRuangLingkup().trim())
+                .targetAudit(request.getTargetAudit().trim())
                 .ketuaTim(ketuaTim)
                 .diterbitkanOleh(current)
                 .statusApproval("Active")
@@ -109,6 +137,17 @@ public class KepalaSpiStaController {
         penugasanStaRepository.save(sta);
 
         return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    private LocalDate parseTanggal(String value, String pesanError) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value.trim());
+        } catch (DateTimeParseException ex) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, pesanError);
+        }
     }
 
     private String generateNomorSta() {
@@ -123,6 +162,10 @@ public class KepalaSpiStaController {
                 .penugasanId(sta.getPenugasanId())
                 .nomorSta(sta.getNomorSta())
                 .tanggalTerbit(sta.getTanggalTerbit() != null ? sta.getTanggalTerbit().toString() : null)
+                .tanggalMulai(sta.getTanggalMulai() != null ? sta.getTanggalMulai().toString() : null)
+                .tanggalSelesai(sta.getTanggalSelesai() != null ? sta.getTanggalSelesai().toString() : null)
+                .ruangLingkup(sta.getRuangLingkup())
+                .targetAudit(sta.getTargetAudit())
                 .objekAudit(objek != null ? objek.getJenisPengawasan() : null)
                 .unitKerja(objek != null && objek.getUnit() != null ? objek.getUnit().getNamaUnit() : null)
                 .periode(pkpt != null && pkpt.getTahunAnggaran() != null ? pkpt.getTahunAnggaran().toString() : null)

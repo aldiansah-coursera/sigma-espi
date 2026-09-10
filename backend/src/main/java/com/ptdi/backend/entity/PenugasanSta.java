@@ -28,6 +28,22 @@ public class PenugasanSta {
     @Column(name = "tanggal_terbit")
     private LocalDate tanggalTerbit;
 
+    // Poin review klien #7: penugasan STA perlu jangka waktu (mulai/selesai)
+    // yang jelas, bukan cuma tanggal terbit saja.
+    @Column(name = "tanggal_mulai")
+    private LocalDate tanggalMulai;
+
+    @Column(name = "tanggal_selesai")
+    private LocalDate tanggalSelesai;
+
+    // Ruang lingkup (scope) & target/sasaran audit untuk penugasan ini --
+    // sesuai masukan review klien #7.
+    @Column(name = "ruang_lingkup", columnDefinition = "TEXT")
+    private String ruangLingkup;
+
+    @Column(name = "target_audit", columnDefinition = "TEXT")
+    private String targetAudit;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ketua_tim_id", nullable = false)
     private User ketuaTim;

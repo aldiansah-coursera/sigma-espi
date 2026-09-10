@@ -119,7 +119,7 @@ export function OtorisasiLhaPage() {
           {!isLoading && filteredLha.length === 0 && (
             <div className="rounded-2xl bg-white px-5 py-10 text-center text-sm text-slate-400 shadow-sm">
               {lhaList.length === 0
-                ? 'Belum ada LHA yang menunggu otorisasi. Daftar ini akan terisi otomatis setelah alur Ketua Tim dan Tim QA menyelesaikan reviu laporan.'
+                ? 'Belum ada LHA yang menunggu otorisasi. Daftar ini akan terisi otomatis setelah alur Ketua Tim dan Tim Jaminan Kualitas menyelesaikan reviu laporan.'
                 : 'Tidak ada LHA yang cocok dengan pencarian.'}
             </div>
           )}

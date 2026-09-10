@@ -4,7 +4,7 @@ import { useAuth } from '../context/useAuth'
 import { roleLabel } from '../lib/roles'
 
 // Halaman sementara untuk role selain Admin. Dashboard Auditor, Ketua Tim,
-// Kepala SPI, Tim QA, dan Auditee akan dibangun menyusul (sesuai arahan:
+// Kepala SPI, Pengawas, Tim Jaminan Kualitas, dan Auditee akan dibangun menyusul (sesuai arahan:
 // fokus Admin dulu).
 export function ComingSoonPage() {
   const { user, logout } = useAuth()

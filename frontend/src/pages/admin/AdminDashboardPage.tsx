@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Users, Clock, ShieldCheck, Check, X, Pencil, Trash2, UserCircle2 } from 'lucide-react'
-import { AppShell } from '../../components/ui/AppShell'
-import type { SidebarNavItem } from '../../components/ui/Sidebar'
+import { AdminShell } from '../../components/admin/AdminShell'
 import { useAuth } from '../../context/useAuth'
 import { extractErrorMessage } from '../../lib/api'
 import { StatCard } from '../../components/ui/StatCard'
@@ -20,8 +19,6 @@ import {
   setPendingUserRole,
   toggleActiveUserStatus,
 } from '../../services/userService'
-
-const ADMIN_NAV_ITEMS: SidebarNavItem[] = [{ label: 'Kelola User & Role', icon: Users, path: '/admin/dashboard' }]
 
 function matchesQuery(query: string, ...fields: Array<string | null | undefined>): boolean {
   if (!query.trim()) return true
@@ -192,8 +189,7 @@ export function AdminDashboardPage() {
   }
 
   return (
-    <AppShell
-      navItems={ADMIN_NAV_ITEMS}
+    <AdminShell
       searchValue={searchQuery}
       onSearchChange={setSearchQuery}
       searchPlaceholder="Cari NIP atau Nama"
@@ -452,6 +448,6 @@ export function AdminDashboardPage() {
             </div>
           </section>
 
-    </AppShell>
+    </AdminShell>
   )
 }

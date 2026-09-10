@@ -27,8 +27,17 @@ import java.util.List;
 public class DataSeeder implements CommandLineRunner {
 
     private static final List<String> ROLE_NAMES = List.of(
-            "Admin", "Auditor", "Ketua Tim", "Kepala SPI", "Tim QA", "Auditee"
+            "Admin", "Auditor", "Ketua Tim", "Kepala SPI", "Pengawas", "Tim Jaminan Kualitas", "Auditee"
     );
+
+    // Nama role lama yang berubah nama setelah masukan review klien --
+    // dipakai untuk migrasi ringan di bawah supaya database yang sudah
+    // pernah ke-seed (roleRepository.count() != 0, jadi ROLE_NAMES di atas
+    // tidak otomatis kepakai lagi) ikut ter-update juga, bukan cuma
+    // database baru.
+    private static final String OLD_ROLE_TIM_QA = "Tim QA";
+    private static final String NEW_ROLE_TIM_JAMINAN_KUALITAS = "Tim Jaminan Kualitas";
+    private static final String NEW_ROLE_PENGAWAS = "Pengawas";
 
     // Contoh Unit Kerja — silakan tambah/ubah daftar ini sesuai struktur
     // organisasi PTDI yang sebenarnya. "Kantor Pusat" dipertahankan sebagai
@@ -54,6 +63,28 @@ public class DataSeeder implements CommandLineRunner {
     public void run(String... args) {
         if (roleRepository.count() == 0) {
             ROLE_NAMES.forEach(nama -> roleRepository.save(Role.builder().namaRole(nama).build()));
+        } else {
+            // Migrasi ringan untuk database yang sudah pernah ke-seed
+            // sebelumnya (lihat komentar OLD_ROLE_TIM_QA di atas).
+            List<Role> existingRoles = roleRepository.findAll();
+
+            existingRoles.stream()
+                    .filter(r -> OLD_ROLE_TIM_QA.equals(r.getNamaRole()))
+                    .findFirst()
+                    .ifPresent(r -> {
+                        boolean sudahAdaNamaBaru = existingRoles.stream()
+                                .anyMatch(other -> NEW_ROLE_TIM_JAMINAN_KUALITAS.equals(other.getNamaRole()));
+                        if (!sudahAdaNamaBaru) {
+                            r.setNamaRole(NEW_ROLE_TIM_JAMINAN_KUALITAS);
+                            roleRepository.save(r);
+                        }
+                    });
+
+            boolean pengawasSudahAda = existingRoles.stream()
+                    .anyMatch(r -> NEW_ROLE_PENGAWAS.equals(r.getNamaRole()));
+            if (!pengawasSudahAda) {
+                roleRepository.save(Role.builder().namaRole(NEW_ROLE_PENGAWAS).build());
+            }
         }
 
         List<String> existingUnitNames = unitRepository.findAll().stream()

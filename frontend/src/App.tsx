@@ -8,13 +8,46 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { LoadingScreen } from './pages/LoadingScreen'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { ComingSoonPage } from './pages/ComingSoonPage'
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage'
+import { AdminUnitsPage } from './pages/admin/AdminUnitsPage'
 import { KepalaSpiDashboardPage } from './pages/kepala-spi/KepalaSpiDashboardPage'
 import { PersetujuanPkptPage } from './pages/kepala-spi/PersetujuanPkptPage'
 import { PenerbitanStaPage } from './pages/kepala-spi/PenerbitanStaPage'
 import { OtorisasiLhaPage } from './pages/kepala-spi/OtorisasiLhaPage'
-import { ADMIN_ROLE_CODE, KEPALA_SPI_ROLE_CODE, resolveHomeRoute } from './lib/roles'
+import { KetuaTimDashboardPage } from './pages/ketua-tim/KetuaTimDashboardPage'
+import { PengajuanPkaPage } from './pages/ketua-tim/PengajuanPkaPage'
+import { PelaksanaanKkaPage } from './pages/ketua-tim/PelaksanaanKkaPage'
+import { EksposTemuanPage } from './pages/ketua-tim/EksposTemuanPage'
+import { PenyusunanLhaPage } from './pages/ketua-tim/PenyusunanLhaPage'
+import { VerifikasiBuktiPage } from './pages/ketua-tim/VerifikasiBuktiPage'
+import { AuditorDashboardPage } from './pages/auditor/AuditorDashboardPage'
+import { PemeriksaanLapanganKkaPage } from './pages/auditor/PemeriksaanLapanganKkaPage'
+import { TemuanAuditKkptPage } from './pages/auditor/TemuanAuditKkptPage'
+import { RevisiKkaTemuanPage } from './pages/auditor/RevisiKkaTemuanPage'
+import { PengawasTimDashboardPage } from './pages/pengawas-tim/PengawasTimDashboardPage'
+import { PersetujuanPkaPage } from './pages/pengawas-tim/PersetujuanPkaPage'
+import { ValidasiKkaTemuanPage } from './pages/pengawas-tim/ValidasiKkaTemuanPage'
+import { JaminanKualitasDashboardPage } from './pages/jaminan-kualitas/JaminanKualitasDashboardPage'
+import { ReviuMetodologiPage } from './pages/jaminan-kualitas/ReviuMetodologiPage'
+import { ValidasiMutuLhaPage } from './pages/jaminan-kualitas/ValidasiMutuLhaPage'
+import { AuditeeBerandaPage } from './pages/auditee/AuditeeBerandaPage'
+import { KonfirmasiTemuanPage } from './pages/auditee/KonfirmasiTemuanPage'
+import { TemuanRekomendasiLhaPage } from './pages/auditee/TemuanRekomendasiLhaPage'
+import { RencanaAksiBuktiPage } from './pages/auditee/RencanaAksiBuktiPage'
+import { SurveiKepuasanPage } from './pages/auditee/SurveiKepuasanPage'
+import {
+  ADMIN_ROLE_CODE,
+  KEPALA_SPI_ROLE_CODE,
+  KETUA_TIM_ROLE_CODE,
+  AUDITOR_ROLE_CODE,
+  PENGAWAS_ROLE_CODE,
+  JAMINAN_KUALITAS_ROLE_CODE,
+  AUDITEE_ROLE_CODE,
+  resolveHomeRoute,
+} from './lib/roles'
 
 function RootRedirect() {
   const { user } = useAuth()
@@ -38,7 +71,13 @@ const SPLASH_FADE_MS = 700
 function AppRoutes() {
   const { isInitializing } = useAuth()
   const location = useLocation()
-  const isLoginRoute = location.pathname === '/login'
+  // Splash juga berlaku untuk /forgot-password & /reset-password -- sama-sama
+  // halaman auth publik yang bisa jadi entry point pertama (dibuka langsung
+  // dari link email), jadi treatment-nya disamakan dengan /login.
+  const isLoginRoute =
+    location.pathname === '/login' ||
+    location.pathname === '/forgot-password' ||
+    location.pathname === '/reset-password'
   const mountedAtRef = useRef(Date.now())
 
   // 'blocking' = auth bootstrap belum selesai (tunggu di belakang layar,
@@ -104,6 +143,22 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/forgot-password"
+        element={
+          <GuestRoute>
+            <ForgotPasswordPage />
+          </GuestRoute>
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={
+          <GuestRoute>
+            <ResetPasswordPage />
+          </GuestRoute>
+        }
+      />
+      <Route
         path="/coming-soon"
         element={
           <ProtectedRoute>
@@ -116,6 +171,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute requireRole={ADMIN_ROLE_CODE}>
             <AdminDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/units"
+        element={
+          <ProtectedRoute requireRole={ADMIN_ROLE_CODE}>
+            <AdminUnitsPage />
           </ProtectedRoute>
         }
       />
@@ -148,6 +211,174 @@ function AppRoutes() {
         element={
           <ProtectedRoute requireRole={KEPALA_SPI_ROLE_CODE}>
             <OtorisasiLhaPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ketua-tim/dashboard"
+        element={
+          <ProtectedRoute requireRole={KETUA_TIM_ROLE_CODE}>
+            <KetuaTimDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ketua-tim/pka"
+        element={
+          <ProtectedRoute requireRole={KETUA_TIM_ROLE_CODE}>
+            <PengajuanPkaPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ketua-tim/kka"
+        element={
+          <ProtectedRoute requireRole={KETUA_TIM_ROLE_CODE}>
+            <PelaksanaanKkaPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ketua-tim/ekspos-temuan"
+        element={
+          <ProtectedRoute requireRole={KETUA_TIM_ROLE_CODE}>
+            <EksposTemuanPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ketua-tim/lha"
+        element={
+          <ProtectedRoute requireRole={KETUA_TIM_ROLE_CODE}>
+            <PenyusunanLhaPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ketua-tim/verifikasi-bukti"
+        element={
+          <ProtectedRoute requireRole={KETUA_TIM_ROLE_CODE}>
+            <VerifikasiBuktiPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pengawas-tim/dashboard"
+        element={
+          <ProtectedRoute requireRole={PENGAWAS_ROLE_CODE}>
+            <PengawasTimDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pengawas-tim/persetujuan-pka"
+        element={
+          <ProtectedRoute requireRole={PENGAWAS_ROLE_CODE}>
+            <PersetujuanPkaPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pengawas-tim/validasi-kka"
+        element={
+          <ProtectedRoute requireRole={PENGAWAS_ROLE_CODE}>
+            <ValidasiKkaTemuanPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/jaminan-kualitas/dashboard"
+        element={
+          <ProtectedRoute requireRole={JAMINAN_KUALITAS_ROLE_CODE}>
+            <JaminanKualitasDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/jaminan-kualitas/reviu-metodologi"
+        element={
+          <ProtectedRoute requireRole={JAMINAN_KUALITAS_ROLE_CODE}>
+            <ReviuMetodologiPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/jaminan-kualitas/validasi-mutu-lha"
+        element={
+          <ProtectedRoute requireRole={JAMINAN_KUALITAS_ROLE_CODE}>
+            <ValidasiMutuLhaPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/auditee/beranda"
+        element={
+          <ProtectedRoute requireRole={AUDITEE_ROLE_CODE}>
+            <AuditeeBerandaPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/auditee/konfirmasi-temuan"
+        element={
+          <ProtectedRoute requireRole={AUDITEE_ROLE_CODE}>
+            <KonfirmasiTemuanPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/auditee/temuan-lha"
+        element={
+          <ProtectedRoute requireRole={AUDITEE_ROLE_CODE}>
+            <TemuanRekomendasiLhaPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/auditee/rencana-aksi"
+        element={
+          <ProtectedRoute requireRole={AUDITEE_ROLE_CODE}>
+            <RencanaAksiBuktiPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/auditee/survei-kepuasan"
+        element={
+          <ProtectedRoute requireRole={AUDITEE_ROLE_CODE}>
+            <SurveiKepuasanPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/auditor/dashboard"
+        element={
+          <ProtectedRoute requireRole={AUDITOR_ROLE_CODE}>
+            <AuditorDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/auditor/pemeriksaan-kka"
+        element={
+          <ProtectedRoute requireRole={AUDITOR_ROLE_CODE}>
+            <PemeriksaanLapanganKkaPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/auditor/temuan-kkpt"
+        element={
+          <ProtectedRoute requireRole={AUDITOR_ROLE_CODE}>
+            <TemuanAuditKkptPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/auditor/revisi"
+        element={
+          <ProtectedRoute requireRole={AUDITOR_ROLE_CODE}>
+            <RevisiKkaTemuanPage />
           </ProtectedRoute>
         }
       />

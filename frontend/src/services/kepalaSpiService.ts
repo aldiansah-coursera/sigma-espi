@@ -40,12 +40,25 @@ export interface Sta {
   penugasanId: number
   nomorSta: string
   tanggalTerbit: string
+  tanggalMulai: string
+  tanggalSelesai: string
+  ruangLingkup: string
+  targetAudit: string
   objekAudit: string
   unitKerja: string
   periode: string
   ketuaTim: string
   diterbitkanOleh: string
   statusApproval: string
+}
+
+export interface CreateStaPayload {
+  objekId: number
+  ketuaTimUserId: number
+  tanggalMulai: string
+  tanggalSelesai: string
+  ruangLingkup: string
+  targetAudit: string
 }
 
 export interface UserOption {
@@ -115,8 +128,8 @@ export async function getKetuaTimOptions(): Promise<UserOption[]> {
   return data
 }
 
-export async function createSta(objekId: number, ketuaTimUserId: number): Promise<void> {
-  await api.post('/api/kepala-spi/sta', { objekId, ketuaTimUserId })
+export async function createSta(payload: CreateStaPayload): Promise<void> {
+  await api.post('/api/kepala-spi/sta', payload)
 }
 
 // ---- LHA ----

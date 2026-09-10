@@ -40,3 +40,16 @@ export async function getRegisterUnits(): Promise<string[]> {
   const { data } = await api.get<string[]>('/api/auth/units')
   return data
 }
+
+// POST /api/auth/forgot-password — publik. Backend selalu balas 200 kosong
+// baik email terdaftar maupun tidak (anti email-enumeration), jadi
+// pemanggil TIDAK BOLEH menyimpulkan dari respons ini apakah email ada.
+export async function requestPasswordReset(email: string): Promise<void> {
+  await api.post('/api/auth/forgot-password', { email })
+}
+
+// POST /api/auth/reset-password — publik, dipanggil dari halaman yang
+// dibuka lewat link di email (?token=...).
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  await api.post('/api/auth/reset-password', { token, newPassword })
+}

@@ -11,6 +11,10 @@ public class StaResponse {
     private Integer penugasanId;
     private String nomorSta;
     private String tanggalTerbit;
+    private String tanggalMulai;
+    private String tanggalSelesai;
+    private String ruangLingkup;
+    private String targetAudit;
     private String objekAudit;
     private String unitKerja;
     private String periode;
