@@ -44,6 +44,10 @@ export function extractErrorMessage(err: unknown, fallback: string): string {
     if (data?.message) return data.message
     if (!err.response) return 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.'
     if (err.response.status === 404) return 'Endpoint belum tersedia di backend.'
+    return fallback
   }
+  // Dipakai request non-axios (mis. fetch() langsung untuk unggah berkas)
+  // yang melempar Error biasa berisi pesan dari backend.
+  if (err instanceof Error && err.message) return err.message
   return fallback
 }

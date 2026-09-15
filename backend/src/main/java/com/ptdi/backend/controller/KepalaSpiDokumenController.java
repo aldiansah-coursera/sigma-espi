@@ -43,6 +43,12 @@ public class KepalaSpiDokumenController {
                 .toList();
     }
 
+    /** Kepala SPI juga perlu melihat berkas PDF saat memeriksa/menyetujui dokumen. */
+    @GetMapping("/{id}/file")
+    public ResponseEntity<byte[]> getFile(@PathVariable Integer id) {
+        return DukunganAuditDokumenController.buildFileResponse(findDokumen(id));
+    }
+
     @PostMapping("/{id}/check")
     public ResponseEntity<Void> check(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
         RegulasiTemplate dokumen = findDokumen(id);
@@ -90,6 +96,8 @@ public class KepalaSpiDokumenController {
                 .judul(r.getJudul())
                 .kategori(r.getKategori())
                 .fileUrl(r.getFileUrl())
+                .fileBuktiNama(r.getFileBuktiNama())
+                .fileBuktiUkuran(r.getFileBuktiUkuran())
                 .status(r.getStatus())
                 .dibuatOleh(r.getUploadedBy() != null ? r.getUploadedBy().getNama() : null)
                 .direviewOleh(r.getDireviewOleh() != null ? r.getDireviewOleh().getNama() : null)

@@ -9,5 +9,4 @@ import lombok.*;
 public class CreateDokumenProgramRequest {
     private String judul;
     private String kategori;
-    private String fileUrl;
 }

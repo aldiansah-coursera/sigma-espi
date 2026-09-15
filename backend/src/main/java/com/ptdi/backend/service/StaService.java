@@ -30,6 +30,7 @@ public class StaService {
     /** Data lama sebelum alur v3.0 -- dianggap sudah beredar. */
     public static final String STATUS_LAMA_ACTIVE = "Active";
     private static final String ROLE_DUKUNGAN_AUDIT_KOORDINATOR = "Dukungan Audit";
+    private static final String ROLE_DUKUNGAN_AUDIT_STAFF = "Dukungan Audit Staff";
 
     private final PenugasanStaRepository penugasanStaRepository;
     private final UserRepository userRepository;
@@ -55,6 +56,16 @@ public class StaService {
                 && ROLE_DUKUNGAN_AUDIT_KOORDINATOR.equals(current.getRole().getNamaRole());
         if (!isKoordinator) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Hanya Dukungan Audit (koordinator) yang bisa mengajukan/mendistribusikan Surat Tugas");
+        }
+    }
+
+    /** Membuat draf ST & menghapusnya hanya boleh "Dukungan Audit Staff". */
+    public void requireStaff(Jwt jwt) {
+        User current = currentUser(jwt);
+        boolean isStaff = current.getRole() != null
+                && ROLE_DUKUNGAN_AUDIT_STAFF.equals(current.getRole().getNamaRole());
+        if (!isStaff) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Hanya Dukungan Audit Staff yang bisa menyusun/menghapus draf Surat Tugas");
         }
     }
 

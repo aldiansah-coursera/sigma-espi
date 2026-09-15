@@ -50,4 +50,17 @@ public class RegulasiTemplate {
 
     @Column(name = "created_at")
     private Instant createdAt;
+
+    // Berkas PDF asli (menggantikan field file_url yang tadinya diisi
+    // manual sebagai teks link) -- disimpan langsung di database (bytea),
+    // sama seperti pola di entity Pkpt.
+    @Lob
+    @Column(name = "file_bukti_data")
+    private byte[] fileBuktiData;
+
+    @Column(name = "file_bukti_nama")
+    private String fileBuktiNama;
+
+    @Column(name = "file_bukti_ukuran")
+    private Long fileBuktiUkuran;
 }

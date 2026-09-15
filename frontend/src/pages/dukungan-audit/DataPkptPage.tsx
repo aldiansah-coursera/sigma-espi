@@ -19,7 +19,7 @@ import { dukunganAuditStatusBadgeClass } from '../../components/dukungan-audit/s
 import { StatCard } from '../../components/ui/StatCard'
 import { useAuth } from '../../context/useAuth'
 import { extractErrorMessage } from '../../lib/api'
-import { DUKUNGAN_AUDIT_ROLE_CODE } from '../../lib/roles'
+import { DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE } from '../../lib/roles'
 import type { ObjekPengawasanInput, PkptItem } from '../../services/dukunganAuditService'
 import {
   PRIORITAS_RISIKO_OPTIONS,
@@ -68,6 +68,7 @@ function emptyObjekRow(defaultUnit: string): ObjekPengawasanInput {
 export function DataPkptPage() {
   const { user } = useAuth()
   const isKoordinator = user?.role === DUKUNGAN_AUDIT_ROLE_CODE
+  const isStaff = user?.role === DUKUNGAN_AUDIT_STAFF_ROLE_CODE
 
   const [pkptList, setPkptList] = useState<PkptItem[]>([])
   const [units, setUnits] = useState<string[]>([])
@@ -294,14 +295,16 @@ export function DataPkptPage() {
             Susun draf Program Kerja Pengawasan Tahunan, ajukan ke Kepala SPI, lalu terbitkan setelah disahkan.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => (showForm ? setShowForm(false) : openForm())}
-          className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-blue-800"
-        >
-          {showForm ? <X size={16} /> : <Plus size={16} />}
-          {showForm ? 'Batal' : 'Susun Draf PKPT'}
-        </button>
+        {isStaff && (
+          <button
+            type="button"
+            onClick={() => (showForm ? setShowForm(false) : openForm())}
+            className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-blue-800"
+          >
+            {showForm ? <X size={16} /> : <Plus size={16} />}
+            {showForm ? 'Batal' : 'Susun Draf PKPT'}
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -530,15 +533,17 @@ export function DataPkptPage() {
                             Ajukan
                           </button>
                         )}
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={() => void handleHapus(p)}
-                          title="Hapus draf"
-                          className="flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        {isStaff && (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => void handleHapus(p)}
+                            title="Hapus draf"
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </>
                     )}
                     {p.status === 'Approved' && isKoordinator && (
@@ -600,7 +605,7 @@ export function DataPkptPage() {
                               <Eye size={12} />
                               Lihat
                             </button>
-                            {p.status === 'Draft' && (
+                            {isStaff && p.status === 'Draft' && (
                               <>
                                 <button
                                   type="button"
@@ -622,7 +627,7 @@ export function DataPkptPage() {
                             )}
                           </div>
                         </div>
-                      ) : p.status === 'Draft' ? (
+                      ) : isStaff && p.status === 'Draft' ? (
                         <button
                           type="button"
                           disabled={fileBusyId === p.pkptId}

@@ -5,7 +5,7 @@ import { dukunganAuditStatusBadgeClass } from '../../components/dukungan-audit/s
 import { StatCard } from '../../components/ui/StatCard'
 import { useAuth } from '../../context/useAuth'
 import { extractErrorMessage } from '../../lib/api'
-import { DUKUNGAN_AUDIT_ROLE_CODE } from '../../lib/roles'
+import { DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE } from '../../lib/roles'
 import type { PppOption, SuratTugas } from '../../services/dukunganAuditService'
 import {
   ajukanSt,
@@ -30,6 +30,7 @@ function matchesQuery(query: string, ...fields: Array<string | null | undefined>
 export function SuratTugasPage() {
   const { user } = useAuth()
   const isKoordinator = user?.role === DUKUNGAN_AUDIT_ROLE_CODE
+  const isStaff = user?.role === DUKUNGAN_AUDIT_STAFF_ROLE_CODE
 
   const [stList, setStList] = useState<SuratTugas[]>([])
   const [pppOptions, setPppOptions] = useState<PppOption[]>([])
@@ -134,18 +135,20 @@ export function SuratTugasPage() {
             distribusikan ke pihak terkait.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setFormError('')
-            setSelectedPppId('')
-            setShowForm((prev) => !prev)
-          }}
-          className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-blue-800"
-        >
-          {showForm ? <X size={16} /> : <Plus size={16} />}
-          {showForm ? 'Batal' : 'Buat Draf ST'}
-        </button>
+        {isStaff && (
+          <button
+            type="button"
+            onClick={() => {
+              setFormError('')
+              setSelectedPppId('')
+              setShowForm((prev) => !prev)
+            }}
+            className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-blue-800"
+          >
+            {showForm ? <X size={16} /> : <Plus size={16} />}
+            {showForm ? 'Batal' : 'Buat Draf ST'}
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -306,15 +309,17 @@ export function SuratTugasPage() {
                             Ajukan
                           </button>
                         )}
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={() => void handleHapus(s)}
-                          title="Hapus draf"
-                          className="flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        {isStaff && (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => void handleHapus(s)}
+                            title="Hapus draf"
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </>
                     )}
                     {s.statusApproval === 'Ditandatangani' && isKoordinator && (

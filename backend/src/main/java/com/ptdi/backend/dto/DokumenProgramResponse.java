@@ -12,6 +12,8 @@ public class DokumenProgramResponse {
     private String judul;
     private String kategori;
     private String fileUrl;
+    private String fileBuktiNama;
+    private Long fileBuktiUkuran;
     private String status;
     private String dibuatOleh;
     private String direviewOleh;

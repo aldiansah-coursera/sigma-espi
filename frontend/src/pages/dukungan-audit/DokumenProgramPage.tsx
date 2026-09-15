@@ -1,15 +1,35 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { ChevronDown, ChevronUp, FileStack, Plus, Send, UploadCloud, X } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  FileStack,
+  FileText,
+  Plus,
+  Send,
+  Trash2,
+  UploadCloud,
+  X,
+} from 'lucide-react'
 import { DukunganAuditShell } from '../../components/dukungan-audit/DukunganAuditShell'
 import { dukunganAuditStatusBadgeClass } from '../../components/dukungan-audit/statusBadge'
 import { StatCard } from '../../components/ui/StatCard'
 import { useAuth } from '../../context/useAuth'
-import { DUKUNGAN_AUDIT_ROLE_CODE } from '../../lib/roles'
+import { extractErrorMessage } from '../../lib/api'
+import { DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE } from '../../lib/roles'
 import type { DokumenProgram } from '../../services/dukunganAuditService'
-import { ajukanDokumen, createDokumen, getDokumenList } from '../../services/dukunganAuditService'
+import {
+  ajukanDokumen,
+  createDokumen,
+  getDokumenFileBlob,
+  getDokumenList,
+  hapusDokumenFile,
+  uploadDokumenFile,
+} from '../../services/dukunganAuditService'
 
 const KATEGORI_OPTIONS = ['Regulasi', 'Template Kerja', 'Pedoman Audit', 'Checklist Program']
+const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 function matchesQuery(query: string, ...fields: Array<string | null | undefined>): boolean {
   if (!query.trim()) return true
@@ -17,9 +37,24 @@ function matchesQuery(query: string, ...fields: Array<string | null | undefined>
   return fields.some((f) => (f ?? '').toLowerCase().includes(q))
 }
 
+function validatePdfFile(file: File): string | null {
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+  if (!isPdf) return 'Berkas wajib berformat PDF.'
+  if (file.size > MAX_FILE_SIZE) return 'Ukuran berkas maksimal 10MB.'
+  return null
+}
+
+function formatFileSize(bytes: number | null | undefined): string {
+  if (!bytes) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
 export function DokumenProgramPage() {
   const { user } = useAuth()
   const isKoordinator = user?.role === DUKUNGAN_AUDIT_ROLE_CODE
+  const isStaff = user?.role === DUKUNGAN_AUDIT_STAFF_ROLE_CODE
 
   const [dokumenList, setDokumenList] = useState<DokumenProgram[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -31,9 +66,13 @@ export function DokumenProgramPage() {
   const [showForm, setShowForm] = useState(false)
   const [judul, setJudul] = useState('')
   const [kategori, setKategori] = useState(KATEGORI_OPTIONS[0])
-  const [fileName, setFileName] = useState('')
+  const [buktiFile, setBuktiFile] = useState<File | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState('')
+
+  const [fileBusyId, setFileBusyId] = useState<number | null>(null)
+  const [uploadRowId, setUploadRowId] = useState<number | null>(null)
+  const rowFileInputRef = useRef<HTMLInputElement>(null)
 
   function load() {
     return getDokumenList().then((data) => {
@@ -63,24 +102,77 @@ export function DokumenProgramPage() {
     setFormError('')
     setJudul('')
     setKategori(KATEGORI_OPTIONS[0])
-    setFileName('')
+    setBuktiFile(null)
     setShowForm(true)
   }
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file) {
-      setFileName('')
-      return
-    }
-    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-      setFormError('Dokumen program wajib berupa file PDF.')
-      e.target.value = ''
-      setFileName('')
+    e.target.value = ''
+    if (!file) return
+    const err = validatePdfFile(file)
+    if (err) {
+      setFormError(err)
       return
     }
     setFormError('')
-    setFileName(file.name)
+    setBuktiFile(file)
+  }
+
+  function triggerRowUpload(id: number) {
+    setUploadRowId(id)
+    rowFileInputRef.current?.click()
+  }
+
+  async function handleRowFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    const targetId = uploadRowId
+    setUploadRowId(null)
+    if (!file || targetId == null) return
+    const err = validatePdfFile(file)
+    if (err) {
+      window.alert(err)
+      return
+    }
+    setFileBusyId(targetId)
+    try {
+      await uploadDokumenFile(targetId, file)
+      await load()
+    } catch (err) {
+      window.alert(extractErrorMessage(err, 'Gagal mengunggah berkas PDF.'))
+    } finally {
+      setFileBusyId(null)
+    }
+  }
+
+  async function handleLihatFile(id: number) {
+    const win = window.open('', '_blank')
+    try {
+      const blob = await getDokumenFileBlob(id)
+      const url = URL.createObjectURL(blob)
+      if (win) {
+        win.location.href = url
+      } else {
+        window.open(url, '_blank')
+      }
+    } catch (err) {
+      win?.close()
+      window.alert(extractErrorMessage(err, 'Gagal membuka berkas PDF.'))
+    }
+  }
+
+  async function handleHapusFile(d: DokumenProgram) {
+    if (!window.confirm('Hapus berkas PDF ini?')) return
+    setFileBusyId(d.regulasiId)
+    try {
+      await hapusDokumenFile(d.regulasiId)
+      await load()
+    } catch (err) {
+      window.alert(extractErrorMessage(err, 'Gagal menghapus berkas PDF.'))
+    } finally {
+      setFileBusyId(null)
+    }
   }
 
   async function handleAjukan(id: number) {
@@ -104,11 +196,21 @@ export function DokumenProgramPage() {
     setFormError('')
     setIsSaving(true)
     try {
-      await createDokumen({ judul: judul.trim(), kategori, fileUrl: fileName || undefined })
+      const created = await createDokumen({ judul: judul.trim(), kategori })
+      if (buktiFile) {
+        try {
+          await uploadDokumenFile(created.regulasiId, buktiFile)
+        } catch (err) {
+          window.alert(
+            extractErrorMessage(err, 'Draf dokumen tersimpan, tapi gagal mengunggah berkas PDF. Coba unggah lagi dari daftar dokumen.'),
+          )
+        }
+      }
       await load()
       setShowForm(false)
-    } catch {
-      setFormError('Gagal menyimpan draf dokumen. Silakan coba lagi.')
+      setBuktiFile(null)
+    } catch (err) {
+      setFormError(extractErrorMessage(err, 'Gagal menyimpan draf dokumen. Silakan coba lagi.'))
     } finally {
       setIsSaving(false)
     }
@@ -116,6 +218,14 @@ export function DokumenProgramPage() {
 
   return (
     <DukunganAuditShell searchValue={searchQuery} onSearchChange={setSearchQuery} searchPlaceholder="Cari judul atau kategori dokumen">
+      <input
+        ref={rowFileInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="hidden"
+        onChange={(e) => void handleRowFileChange(e)}
+      />
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-blue-950 sm:text-3xl">Dokumen Program</h1>
@@ -123,14 +233,16 @@ export function DokumenProgramPage() {
             Susun draf Dokumen Program (DOK PROG) untuk diperiksa dan disetujui Kepala SPI.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => (showForm ? setShowForm(false) : openForm())}
-          className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-blue-800"
-        >
-          {showForm ? <X size={16} /> : <Plus size={16} />}
-          {showForm ? 'Batal' : 'Buat Draf Baru'}
-        </button>
+        {isStaff && (
+          <button
+            type="button"
+            onClick={() => (showForm ? setShowForm(false) : openForm())}
+            className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-blue-800"
+          >
+            {showForm ? <X size={16} /> : <Plus size={16} />}
+            {showForm ? 'Batal' : 'Buat Draf Baru'}
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -179,7 +291,7 @@ export function DokumenProgramPage() {
                 className="mt-1.5 flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500 hover:border-blue-300"
               >
                 <UploadCloud size={18} className="text-blue-600" />
-                {fileName || 'Pilih file PDF...'}
+                {buktiFile ? buktiFile.name : 'Pilih file PDF...'}
               </label>
               <input id="dokumen-program-input" type="file" accept="application/pdf,.pdf" onChange={handleFileChange} className="hidden" />
             </div>
@@ -269,18 +381,73 @@ export function DokumenProgramPage() {
                 )}
 
                 {isExpanded && (
-                  <div className="grid grid-cols-1 gap-4 border-t border-slate-100 px-5 py-4 sm:grid-cols-3">
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-blue-900/50">File</div>
-                      <div className="mt-1 text-sm text-slate-700">{d.fileUrl || '-'}</div>
+                  <div className="border-t border-slate-100 px-5 py-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-blue-900/50">Dibuat Oleh</div>
+                        <div className="mt-1 text-sm text-slate-700">{d.dibuatOleh ?? '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-blue-900/50">Dibuat Pada</div>
+                        <div className="mt-1 text-sm text-slate-700">{d.createdAt ? d.createdAt.slice(0, 10) : '-'}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-blue-900/50">Dibuat Oleh</div>
-                      <div className="mt-1 text-sm text-slate-700">{d.dibuatOleh ?? '-'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-blue-900/50">Dibuat Pada</div>
-                      <div className="mt-1 text-sm text-slate-700">{d.createdAt ? d.createdAt.slice(0, 10) : '-'}</div>
+
+                    <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-blue-900/50">
+                        Berkas Pendukung (PDF)
+                      </div>
+                      {d.fileBuktiNama ? (
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-2 text-sm text-slate-700">
+                            <FileText size={15} className="shrink-0 text-blue-500" />
+                            <span className="truncate">{d.fileBuktiNama}</span>
+                            <span className="shrink-0 text-xs text-slate-400">({formatFileSize(d.fileBuktiUkuran)})</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleLihatFile(d.regulasiId)}
+                              className="flex items-center gap-1 rounded-lg bg-blue-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-800"
+                            >
+                              <Eye size={12} />
+                              Lihat
+                            </button>
+                            {isStaff && d.status === 'Draft' && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={fileBusyId === d.regulasiId}
+                                  onClick={() => triggerRowUpload(d.regulasiId)}
+                                  className="rounded-lg bg-white px-2.5 py-1 text-xs font-semibold text-blue-700 shadow-sm hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Ganti
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={fileBusyId === d.regulasiId}
+                                  onClick={() => void handleHapusFile(d)}
+                                  className="rounded-lg bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ) : isStaff && d.status === 'Draft' ? (
+                        <button
+                          type="button"
+                          disabled={fileBusyId === d.regulasiId}
+                          onClick={() => triggerRowUpload(d.regulasiId)}
+                          className="mt-2 flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <UploadCloud size={13} />
+                          Unggah Berkas PDF
+                        </button>
+                      ) : (
+                        <div className="mt-1 text-sm text-slate-400">Tidak ada berkas.</div>
+                      )}
                     </div>
                   </div>
                 )}

@@ -6,6 +6,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.time.Instant;
 
@@ -60,5 +62,48 @@ public class GlobalExceptionHandler {
                 "Data tidak dapat dihapus/diubah karena masih terhubung dengan data lain."
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /** Berkas yang diunggah (mis. PDF PKPT/Dokumen Program) melebihi batas ukuran. */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        ErrorResponse body = new ErrorResponse(
+                Instant.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "Ukuran berkas melebihi batas maksimal yang diizinkan (10MB)."
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /** Request tidak berisi bagian "file" yang diharapkan (mis. Content-Type bukan multipart). */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ErrorResponse> handleMissingPart(MissingServletRequestPartException ex) {
+        ErrorResponse body = new ErrorResponse(
+                Instant.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "Berkas tidak diterima server (pastikan mengunggah sebagai file, bukan teks biasa)."
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /**
+     * Jaring pengaman terakhir -- sebelumnya exception yang tidak dikenali
+     * jatuh ke halaman error default Spring yang TIDAK menyertakan field
+     * "message" (server.error.include-message default-nya "never"), jadi
+     * di frontend cuma muncul pesan fallback generik tanpa info nyata.
+     * Ditaruh paling bawah supaya handler yang lebih spesifik di atas
+     * tetap yang dipakai duluan.
+     */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex) {
+        ErrorResponse body = new ErrorResponse(
+                Instant.now(),
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                "Terjadi kesalahan tak terduga di server: " + ex.getMessage()
+        );
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 }

@@ -1,4 +1,4 @@
-import { api } from '../lib/api'
+import { api, getStoredToken } from '../lib/api'
 
 // Status DOK PROG: Draft (dibuat Dukungan Audit) -> Checked -> Approved
 // (dua tahap terakhir oleh Kepala SPI, lihat kepalaSpiService.ts).
@@ -7,6 +7,8 @@ export interface DokumenProgram {
   judul: string
   kategori: string
   fileUrl: string | null
+  fileBuktiNama: string | null
+  fileBuktiUkuran: number | null
   status: string
   dibuatOleh: string | null
   direviewOleh: string | null
@@ -16,7 +18,6 @@ export interface DokumenProgram {
 export interface CreateDokumenProgramPayload {
   judul: string
   kategori: string
-  fileUrl?: string
 }
 
 export async function getDokumenList(): Promise<DokumenProgram[]> {
@@ -24,8 +25,44 @@ export async function getDokumenList(): Promise<DokumenProgram[]> {
   return data
 }
 
-export async function createDokumen(payload: CreateDokumenProgramPayload): Promise<void> {
-  await api.post('/api/dukungan-audit/dokumen', payload)
+// Hanya bisa dipanggil "Dukungan Audit Staff" -- backend menolak dengan 403
+// kalau dipanggil koordinator ("Dukungan Audit"), yang tugasnya cuma
+// mengajukan draf yang sudah disusun staf (lihat ajukanDokumen di bawah).
+export async function createDokumen(payload: CreateDokumenProgramPayload): Promise<{ regulasiId: number }> {
+  const { data } = await api.post<{ regulasiId: number }>('/api/dukungan-audit/dokumen', payload)
+  return data
+}
+
+/** Unggah/ganti berkas PDF dokumen (hanya "Dukungan Audit Staff", hanya selama status Draft). */
+export async function uploadDokumenFile(id: number, file: File): Promise<void> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const token = getStoredToken()
+  const res = await fetch(`${api.defaults.baseURL}/api/dukungan-audit/dokumen/${id}/file`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  })
+  if (!res.ok) {
+    let message = 'Gagal mengunggah berkas PDF.'
+    try {
+      const data = await res.json()
+      if (data?.message) message = data.message
+    } catch {
+      // respons bukan JSON, pakai pesan fallback di atas
+    }
+    throw new Error(message)
+  }
+}
+
+/** Ambil berkas PDF sebagai Blob supaya bisa dibuka di tab baru (perlu header Authorization). */
+export async function getDokumenFileBlob(id: number): Promise<Blob> {
+  const { data } = await api.get(`/api/dukungan-audit/dokumen/${id}/file`, { responseType: 'blob' })
+  return data as Blob
+}
+
+export async function hapusDokumenFile(id: number): Promise<void> {
+  await api.delete(`/api/dukungan-audit/dokumen/${id}/file`)
 }
 
 // Hanya bisa dipanggil user dengan role "Dukungan Audit" (koordinator) --
@@ -96,13 +133,32 @@ export async function createPkpt(payload: PkptPayload): Promise<{ pkptId: number
   return data
 }
 
-/** Unggah/ganti berkas PDF pendukung draf PKPT (hanya selama status Draft). */
+/**
+ * Unggah/ganti berkas PDF pendukung draf PKPT (hanya selama status Draft).
+ * Sengaja pakai fetch() langsung (bukan instance axios `api`) supaya
+ * Content-Type multipart + boundary-nya diset otomatis oleh browser --
+ * axios instance ini punya default header 'Content-Type: application/json'
+ * yang berisiko ikut terkirim dan bikin backend gagal membaca berkasnya.
+ */
 export async function uploadPkptFile(id: number, file: File): Promise<void> {
   const formData = new FormData()
   formData.append('file', file)
-  await api.post(`/api/dukungan-audit/pkpt/${id}/file`, formData, {
-    headers: { 'Content-Type': undefined },
+  const token = getStoredToken()
+  const res = await fetch(`${api.defaults.baseURL}/api/dukungan-audit/pkpt/${id}/file`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
   })
+  if (!res.ok) {
+    let message = 'Gagal mengunggah berkas PDF.'
+    try {
+      const data = await res.json()
+      if (data?.message) message = data.message
+    } catch {
+      // respons bukan JSON, pakai pesan fallback di atas
+    }
+    throw new Error(message)
+  }
 }
 
 /** Ambil berkas PDF sebagai Blob supaya bisa dibuka di tab baru (perlu header Authorization, jadi tidak bisa link biasa). */

@@ -52,6 +52,7 @@ public class DukunganAuditPkptController {
     public static final String STATUS_APPROVED = "Approved";
     public static final String STATUS_DITERBITKAN = "Diterbitkan";
     private static final String ROLE_DUKUNGAN_AUDIT_KOORDINATOR = "Dukungan Audit";
+    private static final String ROLE_DUKUNGAN_AUDIT_STAFF = "Dukungan Audit Staff";
 
     private final PkptRepository pkptRepository;
     private final ObjekPengawasanRepository objekPengawasanRepository;
@@ -77,6 +78,7 @@ public class DukunganAuditPkptController {
 
     @PostMapping
     public ResponseEntity<Map<String, Integer>> create(@RequestBody CreatePkptRequest request, @AuthenticationPrincipal Jwt jwt) {
+        requireStaff(jwt);
         validate(request);
 
         Pkpt pkpt = Pkpt.builder()
@@ -96,7 +98,8 @@ public class DukunganAuditPkptController {
 
     /** Ubah isi draf selama statusnya masih Draft (termasuk setelah dikembalikan Kepala SPI). */
     @PutMapping("/{id}")
-    public ResponseEntity<Void> update(@PathVariable Integer id, @RequestBody CreatePkptRequest request) {
+    public ResponseEntity<Void> update(@PathVariable Integer id, @RequestBody CreatePkptRequest request, @AuthenticationPrincipal Jwt jwt) {
+        requireStaff(jwt);
         validate(request);
         Pkpt pkpt = findOrThrow(id);
         if (!STATUS_DRAFT.equals(pkpt.getStatus())) {
@@ -148,7 +151,8 @@ public class DukunganAuditPkptController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Integer id) {
+    public ResponseEntity<Void> delete(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
+        requireStaff(jwt);
         Pkpt pkpt = findOrThrow(id);
         if (!STATUS_DRAFT.equals(pkpt.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "Hanya draf yang bisa dihapus");
@@ -167,7 +171,8 @@ public class DukunganAuditPkptController {
      * membuat/mengubah draf) -- hanya diizinkan selama status masih Draft.
      */
     @PostMapping("/{id}/file")
-    public ResponseEntity<Void> uploadFile(@PathVariable Integer id, @RequestParam("file") MultipartFile file) {
+    public ResponseEntity<Void> uploadFile(@PathVariable Integer id, @RequestParam("file") MultipartFile file, @AuthenticationPrincipal Jwt jwt) {
+        requireStaff(jwt);
         Pkpt pkpt = findOrThrow(id);
         if (!STATUS_DRAFT.equals(pkpt.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "Berkas hanya bisa diunggah/diganti selama PKPT berstatus Draft");
@@ -191,7 +196,8 @@ public class DukunganAuditPkptController {
     }
 
     @DeleteMapping("/{id}/file")
-    public ResponseEntity<Void> deleteFile(@PathVariable Integer id) {
+    public ResponseEntity<Void> deleteFile(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
+        requireStaff(jwt);
         Pkpt pkpt = findOrThrow(id);
         if (!STATUS_DRAFT.equals(pkpt.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "Berkas hanya bisa dihapus selama PKPT berstatus Draft");
@@ -289,6 +295,20 @@ public class DukunganAuditPkptController {
                 && ROLE_DUKUNGAN_AUDIT_KOORDINATOR.equals(current.getRole().getNamaRole());
         if (!isKoordinator) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Hanya Dukungan Audit (koordinator) yang bisa mengajukan/menerbitkan PKPT");
+        }
+    }
+
+    /**
+     * Menyusun/mengubah/menghapus draf (termasuk berkas PDF-nya) hanya
+     * boleh "Dukungan Audit Staff" -- koordinator ("Dukungan Audit") murni
+     * bertugas mengajukan & menerbitkan (lihat requireKoordinator di atas).
+     */
+    private void requireStaff(Jwt jwt) {
+        User current = currentUser(jwt);
+        boolean isStaff = current.getRole() != null
+                && ROLE_DUKUNGAN_AUDIT_STAFF.equals(current.getRole().getNamaRole());
+        if (!isStaff) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Hanya Dukungan Audit Staff yang bisa menyusun/mengubah draf PKPT");
         }
     }
 

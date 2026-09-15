@@ -62,6 +62,7 @@ public class DukunganAuditStController {
 
     @PostMapping("/dari-ppp/{pppId}")
     public ResponseEntity<Void> createDariPpp(@PathVariable Integer pppId, @AuthenticationPrincipal Jwt jwt) {
+        staService.requireStaff(jwt);
         PenugasanPpp ppp = penugasanPppRepository.findById(pppId)
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "PPP tidak ditemukan"));
         if (!PppService.STATUS_DISETUJUI.equals(ppp.getStatus())) {
@@ -123,7 +124,8 @@ public class DukunganAuditStController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Integer id) {
+    public ResponseEntity<Void> delete(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
+        staService.requireStaff(jwt);
         PenugasanSta sta = staService.findOrThrow(id);
         if (!StaService.STATUS_DRAFT.equals(sta.getStatusApproval())) {
             throw new ApiException(HttpStatus.CONFLICT, "Hanya draf Surat Tugas yang bisa dihapus");
