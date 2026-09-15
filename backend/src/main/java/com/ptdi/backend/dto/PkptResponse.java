@@ -20,5 +20,7 @@ public class PkptResponse {
     private String diterbitkanOleh;
     private String tanggalTerbit;
     private String catatanRevisi;
+    private String fileBuktiNama;
+    private Long fileBuktiUkuran;
     private java.util.List<ObjekPengawasanResponse> objekPengawasan;
 }

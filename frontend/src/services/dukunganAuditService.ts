@@ -61,6 +61,8 @@ export interface PkptItem {
   diterbitkanOleh: string | null
   tanggalTerbit: string | null
   catatanRevisi: string | null
+  fileBuktiNama: string | null
+  fileBuktiUkuran: number | null
   totalObjek: number
   objekPengawasan: PkptObjekRingkas[]
 }
@@ -89,8 +91,28 @@ export async function getUnitOptions(): Promise<string[]> {
   return data
 }
 
-export async function createPkpt(payload: PkptPayload): Promise<void> {
-  await api.post('/api/dukungan-audit/pkpt', payload)
+export async function createPkpt(payload: PkptPayload): Promise<{ pkptId: number }> {
+  const { data } = await api.post<{ pkptId: number }>('/api/dukungan-audit/pkpt', payload)
+  return data
+}
+
+/** Unggah/ganti berkas PDF pendukung draf PKPT (hanya selama status Draft). */
+export async function uploadPkptFile(id: number, file: File): Promise<void> {
+  const formData = new FormData()
+  formData.append('file', file)
+  await api.post(`/api/dukungan-audit/pkpt/${id}/file`, formData, {
+    headers: { 'Content-Type': undefined },
+  })
+}
+
+/** Ambil berkas PDF sebagai Blob supaya bisa dibuka di tab baru (perlu header Authorization, jadi tidak bisa link biasa). */
+export async function getPkptFileBlob(id: number): Promise<Blob> {
+  const { data } = await api.get(`/api/dukungan-audit/pkpt/${id}/file`, { responseType: 'blob' })
+  return data as Blob
+}
+
+export async function hapusPkptFile(id: number): Promise<void> {
+  await api.delete(`/api/dukungan-audit/pkpt/${id}/file`)
 }
 
 export async function updatePkpt(id: number, payload: PkptPayload): Promise<void> {

@@ -1,5 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
-import { CalendarRange, ChevronDown, ChevronUp, ClipboardList, Plus, Send, Stamp, Trash2, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ChangeEvent } from 'react'
+import {
+  CalendarRange,
+  ChevronDown,
+  ChevronUp,
+  ClipboardList,
+  Eye,
+  FileText,
+  Plus,
+  Send,
+  Stamp,
+  Trash2,
+  UploadCloud,
+  X,
+} from 'lucide-react'
 import { DukunganAuditShell } from '../../components/dukungan-audit/DukunganAuditShell'
 import { dukunganAuditStatusBadgeClass } from '../../components/dukungan-audit/statusBadge'
 import { StatCard } from '../../components/ui/StatCard'
@@ -11,11 +25,30 @@ import {
   PRIORITAS_RISIKO_OPTIONS,
   ajukanPkpt,
   createPkpt,
+  getPkptFileBlob,
   getPkptList,
   getUnitOptions,
   hapusPkptDraft,
+  hapusPkptFile,
   terbitkanPkpt,
+  uploadPkptFile,
 } from '../../services/dukunganAuditService'
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+
+function validatePdfFile(file: File): string | null {
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+  if (!isPdf) return 'Berkas wajib berformat PDF.'
+  if (file.size > MAX_FILE_SIZE) return 'Ukuran berkas maksimal 10MB.'
+  return null
+}
+
+function formatFileSize(bytes: number | null | undefined): string {
+  if (!bytes) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
 
 function matchesQuery(query: string, ...fields: Array<string | null | undefined>): boolean {
   if (!query.trim()) return true
@@ -49,8 +82,13 @@ export function DataPkptPage() {
   const [tanggalMulai, setTanggalMulai] = useState('')
   const [tanggalSelesai, setTanggalSelesai] = useState('')
   const [objekRows, setObjekRows] = useState<ObjekPengawasanInput[]>([])
+  const [buktiFile, setBuktiFile] = useState<File | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState('')
+
+  const [fileBusyId, setFileBusyId] = useState<number | null>(null)
+  const [uploadRowId, setUploadRowId] = useState<number | null>(null)
+  const rowFileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -93,7 +131,21 @@ export function DataPkptPage() {
     setTanggalMulai('')
     setTanggalSelesai('')
     setObjekRows([emptyObjekRow(units[0] ?? '')])
+    setBuktiFile(null)
     setShowForm(true)
+  }
+
+  function handleCreateFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const err = validatePdfFile(file)
+    if (err) {
+      setFormError(err)
+      return
+    }
+    setFormError('')
+    setBuktiFile(file)
   }
 
   function updateObjekRow(index: number, patch: Partial<ObjekPengawasanInput>) {
@@ -122,15 +174,25 @@ export function DataPkptPage() {
     setFormError('')
     setIsSaving(true)
     try {
-      await createPkpt({
+      const created = await createPkpt({
         tahunAnggaran: Number(tahunAnggaran),
         namaPkpt: namaPkpt.trim(),
         tanggalMulai,
         tanggalSelesai,
         objekPengawasan: objekValid.map((o) => ({ ...o, jenisPengawasan: o.jenisPengawasan.trim() })),
       })
+      if (buktiFile) {
+        try {
+          await uploadPkptFile(created.pkptId, buktiFile)
+        } catch (err) {
+          window.alert(
+            extractErrorMessage(err, 'Draf PKPT tersimpan, tapi gagal mengunggah berkas PDF. Coba unggah lagi dari daftar PKPT.'),
+          )
+        }
+      }
       await refresh()
       setShowForm(false)
+      setBuktiFile(null)
     } catch (err) {
       setFormError(extractErrorMessage(err, 'Gagal menyimpan draf PKPT.'))
     } finally {
@@ -155,12 +217,76 @@ export function DataPkptPage() {
     await runAction(p.pkptId, hapusPkptDraft, 'Gagal menghapus draf PKPT.')
   }
 
+  function triggerRowUpload(id: number) {
+    setUploadRowId(id)
+    rowFileInputRef.current?.click()
+  }
+
+  async function handleRowFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    const targetId = uploadRowId
+    setUploadRowId(null)
+    if (!file || targetId == null) return
+    const err = validatePdfFile(file)
+    if (err) {
+      window.alert(err)
+      return
+    }
+    setFileBusyId(targetId)
+    try {
+      await uploadPkptFile(targetId, file)
+      await refresh()
+    } catch (err) {
+      window.alert(extractErrorMessage(err, 'Gagal mengunggah berkas PDF.'))
+    } finally {
+      setFileBusyId(null)
+    }
+  }
+
+  async function handleLihatFile(id: number) {
+    const win = window.open('', '_blank')
+    try {
+      const blob = await getPkptFileBlob(id)
+      const url = URL.createObjectURL(blob)
+      if (win) {
+        win.location.href = url
+      } else {
+        window.open(url, '_blank')
+      }
+    } catch (err) {
+      win?.close()
+      window.alert(extractErrorMessage(err, 'Gagal membuka berkas PDF.'))
+    }
+  }
+
+  async function handleHapusFile(p: PkptItem) {
+    if (!window.confirm('Hapus berkas PDF ini?')) return
+    setFileBusyId(p.pkptId)
+    try {
+      await hapusPkptFile(p.pkptId)
+      await refresh()
+    } catch (err) {
+      window.alert(extractErrorMessage(err, 'Gagal menghapus berkas PDF.'))
+    } finally {
+      setFileBusyId(null)
+    }
+  }
+
   return (
     <DukunganAuditShell
       searchValue={searchQuery}
       onSearchChange={setSearchQuery}
       searchPlaceholder="Cari nama PKPT atau tahun"
     >
+      <input
+        ref={rowFileInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="hidden"
+        onChange={(e) => void handleRowFileChange(e)}
+      />
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-blue-950 sm:text-3xl">Data PKPT (Rencana Tahunan)</h1>
@@ -293,6 +419,29 @@ export function DataPkptPage() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-blue-900/50">
+                Berkas Pendukung (PDF, opsional)
+              </label>
+              <label
+                htmlFor="pkpt-bukti-input"
+                className="mt-1.5 flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-blue-200 bg-white px-4 py-6 text-center hover:border-blue-400"
+              >
+                <UploadCloud size={22} className="text-blue-400" />
+                <span className="text-sm font-semibold text-blue-700">
+                  {buktiFile ? buktiFile.name : 'Klik untuk memilih berkas PDF'}
+                </span>
+                <span className="text-xs text-slate-400">Hanya file PDF, maksimal 10MB</span>
+                <input
+                  id="pkpt-bukti-input"
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={handleCreateFileChange}
+                  className="hidden"
+                />
+              </label>
             </div>
           </div>
 
@@ -429,6 +578,63 @@ export function DataPkptPage() {
                           {p.diterbitkanOleh ? `${p.diterbitkanOleh} (${p.tanggalTerbit ?? '-'})` : '-'}
                         </div>
                       </div>
+                    </div>
+
+                    <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-blue-900/50">
+                        Berkas Pendukung (PDF)
+                      </div>
+                      {p.fileBuktiNama ? (
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-2 text-sm text-slate-700">
+                            <FileText size={15} className="shrink-0 text-blue-500" />
+                            <span className="truncate">{p.fileBuktiNama}</span>
+                            <span className="shrink-0 text-xs text-slate-400">({formatFileSize(p.fileBuktiUkuran)})</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleLihatFile(p.pkptId)}
+                              className="flex items-center gap-1 rounded-lg bg-blue-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-800"
+                            >
+                              <Eye size={12} />
+                              Lihat
+                            </button>
+                            {p.status === 'Draft' && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={fileBusyId === p.pkptId}
+                                  onClick={() => triggerRowUpload(p.pkptId)}
+                                  className="rounded-lg bg-white px-2.5 py-1 text-xs font-semibold text-blue-700 shadow-sm hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Ganti
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={fileBusyId === p.pkptId}
+                                  onClick={() => void handleHapusFile(p)}
+                                  className="rounded-lg bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Hapus
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ) : p.status === 'Draft' ? (
+                        <button
+                          type="button"
+                          disabled={fileBusyId === p.pkptId}
+                          onClick={() => triggerRowUpload(p.pkptId)}
+                          className="mt-2 flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <UploadCloud size={13} />
+                          Unggah Berkas PDF
+                        </button>
+                      ) : (
+                        <div className="mt-1 text-sm text-slate-400">Tidak ada berkas.</div>
+                      )}
                     </div>
 
                     <div className="mt-4">

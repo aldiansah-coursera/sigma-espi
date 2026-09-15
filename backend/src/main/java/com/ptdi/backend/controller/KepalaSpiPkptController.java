@@ -48,6 +48,12 @@ public class KepalaSpiPkptController {
                 .toList();
     }
 
+    /** Kepala SPI juga perlu melihat berkas PDF pendukung saat memeriksa/mengesahkan PKPT. */
+    @GetMapping("/{id}/file")
+    public ResponseEntity<byte[]> getFile(@PathVariable Integer id) {
+        return DukunganAuditPkptController.buildFileResponse(findOrThrow(id));
+    }
+
     @PostMapping("/{id}/check")
     public ResponseEntity<Void> check(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
         Pkpt pkpt = findOrThrow(id);

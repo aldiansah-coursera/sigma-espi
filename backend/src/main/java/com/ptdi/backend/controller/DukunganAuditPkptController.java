@@ -14,17 +14,22 @@ import com.ptdi.backend.repository.PkptRepository;
 import com.ptdi.backend.repository.UnitRepository;
 import com.ptdi.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Tahap 05 flowmap SIGMA v3.0 -- Dukungan Audit "Menyediakan & Mengelola
@@ -71,7 +76,7 @@ public class DukunganAuditPkptController {
     }
 
     @PostMapping
-    public ResponseEntity<Void> create(@RequestBody CreatePkptRequest request, @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<Map<String, Integer>> create(@RequestBody CreatePkptRequest request, @AuthenticationPrincipal Jwt jwt) {
         validate(request);
 
         Pkpt pkpt = Pkpt.builder()
@@ -86,7 +91,7 @@ public class DukunganAuditPkptController {
 
         simpanObjek(pkpt, request.getObjekPengawasan());
 
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("pkptId", pkpt.getPkptId()));
     }
 
     /** Ubah isi draf selama statusnya masih Draft (termasuk setelah dikembalikan Kepala SPI). */
@@ -154,6 +159,78 @@ public class DukunganAuditPkptController {
         objekPengawasanRepository.deleteAll(objekLama);
         pkptRepository.delete(pkpt);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Unggah (atau ganti) berkas PDF pendukung draf PKPT. Bisa dipanggil
+     * Dukungan Audit maupun Dukungan Audit Staff (sama seperti izin
+     * membuat/mengubah draf) -- hanya diizinkan selama status masih Draft.
+     */
+    @PostMapping("/{id}/file")
+    public ResponseEntity<Void> uploadFile(@PathVariable Integer id, @RequestParam("file") MultipartFile file) {
+        Pkpt pkpt = findOrThrow(id);
+        if (!STATUS_DRAFT.equals(pkpt.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "Berkas hanya bisa diunggah/diganti selama PKPT berstatus Draft");
+        }
+        validateFile(file);
+        try {
+            pkpt.setFileBuktiData(file.getBytes());
+        } catch (IOException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Gagal membaca berkas yang diunggah");
+        }
+        pkpt.setFileBuktiNama(file.getOriginalFilename());
+        pkpt.setFileBuktiUkuran(file.getSize());
+        pkptRepository.save(pkpt);
+        return ResponseEntity.ok().build();
+    }
+
+    /** Berkas PDF bisa dilihat/diunduh siapa saja yang punya akses ke PKPT ini (Dukungan Audit, staf, & Kepala SPI). */
+    @GetMapping("/{id}/file")
+    public ResponseEntity<byte[]> getFile(@PathVariable Integer id) {
+        return buildFileResponse(findOrThrow(id));
+    }
+
+    @DeleteMapping("/{id}/file")
+    public ResponseEntity<Void> deleteFile(@PathVariable Integer id) {
+        Pkpt pkpt = findOrThrow(id);
+        if (!STATUS_DRAFT.equals(pkpt.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "Berkas hanya bisa dihapus selama PKPT berstatus Draft");
+        }
+        pkpt.setFileBuktiData(null);
+        pkpt.setFileBuktiNama(null);
+        pkpt.setFileBuktiUkuran(null);
+        pkptRepository.save(pkpt);
+        return ResponseEntity.ok().build();
+    }
+
+    private void validateFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Berkas PDF wajib dipilih");
+        }
+        String namaFile = file.getOriginalFilename();
+        boolean isPdf = "application/pdf".equals(file.getContentType())
+                || (namaFile != null && namaFile.toLowerCase().endsWith(".pdf"));
+        if (!isPdf) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Berkas wajib berformat PDF");
+        }
+        long maxSize = 10L * 1024 * 1024;
+        if (file.getSize() > maxSize) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ukuran berkas maksimal 10MB");
+        }
+    }
+
+    /** Dipakai bersama KepalaSpiPkptController supaya Kepala SPI juga bisa melihat berkas yang sama. */
+    public static ResponseEntity<byte[]> buildFileResponse(Pkpt pkpt) {
+        if (pkpt.getFileBuktiData() == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "PKPT ini belum punya berkas PDF");
+        }
+        String namaFile = StringUtils.hasText(pkpt.getFileBuktiNama())
+                ? pkpt.getFileBuktiNama().replace("\"", "")
+                : "pkpt-" + pkpt.getPkptId() + ".pdf";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + namaFile + "\"")
+                .body(pkpt.getFileBuktiData());
     }
 
     private void validate(CreatePkptRequest request) {
@@ -235,6 +312,8 @@ public class DukunganAuditPkptController {
                 .diterbitkanOleh(pkpt.getDiterbitkanOleh() != null ? pkpt.getDiterbitkanOleh().getNama() : null)
                 .tanggalTerbit(pkpt.getTanggalTerbit() != null ? pkpt.getTanggalTerbit().toString() : null)
                 .catatanRevisi(pkpt.getCatatanRevisi())
+                .fileBuktiNama(pkpt.getFileBuktiNama())
+                .fileBuktiUkuran(pkpt.getFileBuktiUkuran())
                 .totalObjek(milikPkpt.size())
                 .objekPengawasan(milikPkpt.stream()
                         .map(o -> ObjekPengawasanResponse.builder()

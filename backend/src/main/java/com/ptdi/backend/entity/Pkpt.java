@@ -54,4 +54,18 @@ public class Pkpt {
 
     @Column(name = "catatan_revisi", columnDefinition = "TEXT")
     private String catatanRevisi;
+
+    // Berkas PDF pendukung (opsional) yang dilampirkan Dukungan Audit saat
+    // menyusun draf -- bisa dilihat oleh Dukungan Audit (koordinator & staf)
+    // maupun Kepala SPI. Disimpan langsung di database (bytea) supaya tidak
+    // perlu storage terpisah.
+    @Lob
+    @Column(name = "file_bukti_data")
+    private byte[] fileBuktiData;
+
+    @Column(name = "file_bukti_nama")
+    private String fileBuktiNama;
+
+    @Column(name = "file_bukti_ukuran")
+    private Long fileBuktiUkuran;
 }
