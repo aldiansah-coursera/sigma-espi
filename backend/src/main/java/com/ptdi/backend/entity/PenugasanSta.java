@@ -48,10 +48,34 @@ public class PenugasanSta {
     @JoinColumn(name = "ketua_tim_id", nullable = false)
     private User ketuaTim;
 
+    /** Kepala SPI yang menandatangani ST (tahap 09 flowmap v3.0). */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "diterbitkan_oleh")
     private User diterbitkanOleh;
 
     @Column(name = "status_approval")
     private String statusApproval;
+
+    // Alur SIGMA v3.0 tahap 08-10: draf ST dibuat Dukungan Audit
+    // (dibuatOleh) dari PPP yang sudah disetujui, ditandatangani Kepala SPI
+    // (diterbitkanOleh), lalu didistribusikan Dukungan Audit
+    // (didistribusikanOleh). Status: Draft -> Diajukan -> Ditandatangani
+    // -> Didistribusikan.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ppp_id")
+    private PenugasanPpp ppp;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "dibuat_oleh")
+    private User dibuatOleh;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "didistribusikan_oleh")
+    private User didistribusikanOleh;
+
+    @Column(name = "tanggal_distribusi")
+    private LocalDate tanggalDistribusi;
+
+    @Column(name = "catatan_revisi", columnDefinition = "TEXT")
+    private String catatanRevisi;
 }

@@ -1,16 +1,13 @@
 package com.ptdi.backend.controller;
 
-import com.ptdi.backend.dto.CreatePkptRequest;
-import com.ptdi.backend.dto.ObjekPengawasanInput;
+import com.ptdi.backend.dto.CatatanRevisiRequest;
 import com.ptdi.backend.dto.PkptResponse;
 import com.ptdi.backend.entity.ObjekPengawasan;
 import com.ptdi.backend.entity.Pkpt;
-import com.ptdi.backend.entity.Unit;
 import com.ptdi.backend.entity.User;
 import com.ptdi.backend.exception.ApiException;
 import com.ptdi.backend.repository.ObjekPengawasanRepository;
 import com.ptdi.backend.repository.PkptRepository;
-import com.ptdi.backend.repository.UnitRepository;
 import com.ptdi.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,114 +21,76 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * Kepala SPI membuat PKPT (Program Kerja Pengawasan Tahunan) langsung —
- * sesuai Flowmap-SIGMA-v2.0 ("Membuat PKPT" ada di lane Kepala SPI, bukan
- * lane lain yang mengajukan ke Kepala SPI). Approve/reject di sini adalah
- * langkah finalisasi Kepala SPI sendiri sebelum objek pengawasannya bisa
- * dipakai menerbitkan STA.
+ * Tahap 06 flowmap SIGMA v3.0 -- Kepala SPI "Memeriksa & Mengesahkan PKPT".
+ * Sesuai arahan klien, Kepala SPI TIDAK lagi menyusun PKPT sendiri: drafnya
+ * dibuat Dukungan Audit (DukunganAuditPkptController), di sini hanya
+ * diperiksa (Checked) lalu disahkan (Approved), atau dikembalikan ke Draft
+ * dengan catatan revisi. Penerbitannya kembali ke Dukungan Audit.
  */
 @RestController
 @RequestMapping("/api/kepala-spi/pkpt")
 @RequiredArgsConstructor
 public class KepalaSpiPkptController {
 
-    private static final String STATUS_PENDING = "Pending";
-    private static final String STATUS_APPROVED = "Approved";
-    private static final String STATUS_DITOLAK = "Ditolak";
+    // Data lama (sebelum alur v3.0) berstatus "Pending" -- tetap dianggap
+    // setara "Diajukan" supaya PKPT lama masih bisa diproses Kepala SPI.
+    private static final String STATUS_PENDING_LAMA = "Pending";
 
     private final PkptRepository pkptRepository;
     private final ObjekPengawasanRepository objekPengawasanRepository;
-    private final UnitRepository unitRepository;
     private final UserRepository userRepository;
 
     @GetMapping
     public List<PkptResponse> getAll() {
         List<ObjekPengawasan> allObjek = objekPengawasanRepository.findAll();
-        return pkptRepository.findAll().stream()
-                .sorted((a, b) -> Integer.compare(b.getPkptId(), a.getPkptId()))
-                .map(pkpt -> toResponse(pkpt, allObjek))
+        return pkptRepository.findAllByOrderByPkptIdDesc().stream()
+                .map(p -> DukunganAuditPkptController.buildResponse(p, allObjek))
                 .toList();
     }
 
-    @PostMapping
-    public ResponseEntity<Void> create(@RequestBody CreatePkptRequest request, @AuthenticationPrincipal Jwt jwt) {
-        if (request.getTahunAnggaran() == null
-                || !StringUtils.hasText(request.getNamaPkpt())
-                || request.getTanggalMulai() == null
-                || request.getTanggalSelesai() == null
-                || request.getObjekPengawasan() == null
-                || request.getObjekPengawasan().isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Tahun anggaran, nama PKPT, periode, dan minimal 1 objek pengawasan wajib diisi");
+    @PostMapping("/{id}/check")
+    public ResponseEntity<Void> check(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
+        Pkpt pkpt = findOrThrow(id);
+        if (!isSiapDiperiksa(pkpt.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "PKPT hanya bisa diperiksa dari status Diajukan");
         }
-
-        User current = currentUser(jwt);
-
-        Pkpt pkpt = Pkpt.builder()
-                .tahunAnggaran(request.getTahunAnggaran())
-                .namaPkpt(request.getNamaPkpt().trim())
-                .tanggalMulai(request.getTanggalMulai())
-                .tanggalSelesai(request.getTanggalSelesai())
-                .status(STATUS_PENDING)
-                .dibuatOleh(current)
-                .build();
-        pkpt = pkptRepository.save(pkpt);
-
-        for (ObjekPengawasanInput input : request.getObjekPengawasan()) {
-            if (!StringUtils.hasText(input.getUnitKerja()) || !StringUtils.hasText(input.getJenisPengawasan())) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Unit kerja dan jenis pengawasan wajib diisi tiap objek");
-            }
-            Unit unit = resolveUnitOrThrow(input.getUnitKerja());
-            ObjekPengawasan objek = ObjekPengawasan.builder()
-                    .pkpt(pkpt)
-                    .unit(unit)
-                    .jenisPengawasan(input.getJenisPengawasan().trim())
-                    .prioritasRisiko(StringUtils.hasText(input.getPrioritasRisiko()) ? input.getPrioritasRisiko() : "Sedang")
-                    .status("Terjadwal")
-                    .build();
-            objekPengawasanRepository.save(objek);
-        }
-
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        pkpt.setStatus(DukunganAuditPkptController.STATUS_CHECKED);
+        pkpt.setDisahkanOleh(currentUser(jwt));
+        pkptRepository.save(pkpt);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{id}/approve")
-    public ResponseEntity<Void> approve(@PathVariable Integer id) {
+    public ResponseEntity<Void> approve(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
         Pkpt pkpt = findOrThrow(id);
-        pkpt.setStatus(STATUS_APPROVED);
+        if (!DukunganAuditPkptController.STATUS_CHECKED.equals(pkpt.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "PKPT hanya bisa disahkan setelah diperiksa (status Checked)");
+        }
+        pkpt.setStatus(DukunganAuditPkptController.STATUS_APPROVED);
+        pkpt.setDisahkanOleh(currentUser(jwt));
         pkptRepository.save(pkpt);
         return ResponseEntity.ok().build();
     }
 
-    @PostMapping("/{id}/reject")
-    public ResponseEntity<Void> reject(@PathVariable Integer id) {
+    /** Kembalikan draf ke Dukungan Audit dengan catatan revisi. */
+    @PostMapping("/{id}/kembalikan")
+    public ResponseEntity<Void> kembalikan(@PathVariable Integer id, @RequestBody(required = false) CatatanRevisiRequest request,
+                                           @AuthenticationPrincipal Jwt jwt) {
         Pkpt pkpt = findOrThrow(id);
-        pkpt.setStatus(STATUS_DITOLAK);
+        if (!isSiapDiperiksa(pkpt.getStatus()) && !DukunganAuditPkptController.STATUS_CHECKED.equals(pkpt.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "PKPT yang sudah disahkan tidak bisa dikembalikan");
+        }
+        pkpt.setStatus(DukunganAuditPkptController.STATUS_DRAFT);
+        pkpt.setDisahkanOleh(currentUser(jwt));
+        pkpt.setCatatanRevisi(request != null && StringUtils.hasText(request.getCatatan())
+                ? request.getCatatan().trim()
+                : "Dikembalikan Kepala SPI untuk diperbaiki.");
         pkptRepository.save(pkpt);
         return ResponseEntity.ok().build();
     }
 
-    private PkptResponse toResponse(Pkpt pkpt, List<ObjekPengawasan> allObjek) {
-        long totalObjek = allObjek.stream()
-                .filter(o -> o.getPkpt() != null && pkpt.getPkptId().equals(o.getPkpt().getPkptId()))
-                .count();
-        return PkptResponse.builder()
-                .pkptId(pkpt.getPkptId())
-                .tahunAnggaran(pkpt.getTahunAnggaran())
-                .namaPkpt(pkpt.getNamaPkpt())
-                .tanggalMulai(pkpt.getTanggalMulai() != null ? pkpt.getTanggalMulai().toString() : null)
-                .tanggalSelesai(pkpt.getTanggalSelesai() != null ? pkpt.getTanggalSelesai().toString() : null)
-                .status(pkpt.getStatus())
-                .dibuatOleh(pkpt.getDibuatOleh() != null ? pkpt.getDibuatOleh().getNama() : null)
-                .totalObjek((int) totalObjek)
-                .build();
-    }
-
-    private Unit resolveUnitOrThrow(String unitKerja) {
-        return unitRepository.findAll().stream()
-                .filter(u -> u.getNamaUnit().equalsIgnoreCase(unitKerja))
-                .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Unit kerja tidak dikenali"));
+    private boolean isSiapDiperiksa(String status) {
+        return DukunganAuditPkptController.STATUS_DIAJUKAN.equals(status) || STATUS_PENDING_LAMA.equals(status);
     }
 
     private Pkpt findOrThrow(Integer id) {

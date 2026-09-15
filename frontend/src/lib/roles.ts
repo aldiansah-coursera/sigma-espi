@@ -16,6 +16,8 @@ export const ROLE_OPTIONS: RoleOption[] = [
   { namaRole: 'Pengawas', code: 'ROLE_PENGAWAS' },
   { namaRole: 'Tim Jaminan Kualitas', code: 'ROLE_TIM_JAMINAN_KUALITAS' },
   { namaRole: 'Auditee', code: 'ROLE_AUDITEE' },
+  { namaRole: 'Dukungan Audit', code: 'ROLE_DUKUNGAN_AUDIT' },
+  { namaRole: 'Dukungan Audit Staff', code: 'ROLE_DUKUNGAN_AUDIT_STAFF' },
 ]
 
 const ROLE_LABELS: Record<string, string> = Object.fromEntries(
@@ -29,6 +31,8 @@ export const AUDITOR_ROLE_CODE = 'ROLE_AUDITOR'
 export const PENGAWAS_ROLE_CODE = 'ROLE_PENGAWAS'
 export const JAMINAN_KUALITAS_ROLE_CODE = 'ROLE_TIM_JAMINAN_KUALITAS'
 export const AUDITEE_ROLE_CODE = 'ROLE_AUDITEE'
+export const DUKUNGAN_AUDIT_ROLE_CODE = 'ROLE_DUKUNGAN_AUDIT'
+export const DUKUNGAN_AUDIT_STAFF_ROLE_CODE = 'ROLE_DUKUNGAN_AUDIT_STAFF'
 
 export function roleLabel(roleCode: string): string {
   return ROLE_LABELS[roleCode] ?? roleCode.replace(/^ROLE_/, '')
@@ -44,5 +48,7 @@ export function resolveHomeRoute(roleCode: string): string {
   if (roleCode === PENGAWAS_ROLE_CODE) return '/pengawas-tim/dashboard'
   if (roleCode === JAMINAN_KUALITAS_ROLE_CODE) return '/jaminan-kualitas/dashboard'
   if (roleCode === AUDITEE_ROLE_CODE) return '/auditee/beranda'
+  if (roleCode === DUKUNGAN_AUDIT_ROLE_CODE) return '/dukungan-audit/dashboard'
+  if (roleCode === DUKUNGAN_AUDIT_STAFF_ROLE_CODE) return '/dukungan-audit/dashboard'
   return '/coming-soon'
 }

@@ -36,4 +36,22 @@ public class Pkpt {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dibuat_oleh")
     private User dibuatOleh;
+
+    // Alur SIGMA v3.0 tahap 05-06: draf disusun Dukungan Audit
+    // (dibuatOleh), diperiksa & disahkan Kepala SPI (disahkanOleh), lalu
+    // diterbitkan kembali oleh Dukungan Audit (diterbitkanOleh).
+    // Status: Draft -> Diajukan -> Checked -> Approved -> Diterbitkan.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "disahkan_oleh")
+    private User disahkanOleh;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "diterbitkan_oleh")
+    private User diterbitkanOleh;
+
+    @Column(name = "tanggal_terbit")
+    private LocalDate tanggalTerbit;
+
+    @Column(name = "catatan_revisi", columnDefinition = "TEXT")
+    private String catatanRevisi;
 }

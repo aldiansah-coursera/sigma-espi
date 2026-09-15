@@ -16,4 +16,9 @@ public class PkptResponse {
     private String status;
     private String dibuatOleh;
     private int totalObjek;
+    private String disahkanOleh;
+    private String diterbitkanOleh;
+    private String tanggalTerbit;
+    private String catatanRevisi;
+    private java.util.List<ObjekPengawasanResponse> objekPengawasan;
 }

@@ -11,6 +11,7 @@ import com.ptdi.backend.exception.ApiException;
 import com.ptdi.backend.repository.RoleRepository;
 import com.ptdi.backend.repository.UnitRepository;
 import com.ptdi.backend.repository.UserRepository;
+import com.ptdi.backend.service.UserDeletionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -27,17 +28,11 @@ public class AdminUserController {
     private static final String STATUS_PENDING = "Pending";
     private static final String STATUS_AKTIF = "Aktif";
     private static final String STATUS_NONAKTIF = "Nonaktif";
-    // Status "arsip" saat Admin menghapus akun lewat tombol Hapus di Kelola
-    // User -- BUKAN hard delete, supaya riwayat data yang masih terhubung ke
-    // user ini (mis. PKPT/STA/LHA yang pernah dia buat/setujui, log audit)
-    // tidak ikut hilang atau membuat query gagal karena constraint FK.
-    // Dikecualikan dari getActiveUsers() & getPendingUsers() sehingga tetap
-    // tampak "terhapus" di UI.
-    private static final String STATUS_DIHAPUS = "Dihapus";
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final UnitRepository unitRepository;
+    private final UserDeletionService userDeletionService;
 
     @GetMapping("/pending")
     public List<PendingUserResponse> getPendingUsers() {
@@ -143,12 +138,12 @@ public class AdminUserController {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Gunakan aksi tolak untuk pendaftar yang masih menunggu persetujuan");
         }
-        // Soft-delete (lihat komentar STATUS_DIHAPUS) -- sebelumnya pakai
-        // userRepository.delete(user) yang hard-delete, dan gagal diam-diam
-        // (500 tanpa pesan jelas) kalau user ini pernah membuat/menyetujui
-        // PKPT/STA/LHA karena data itu masih mereferensikan user_id-nya.
-        user.setStatus(STATUS_DIHAPUS);
-        userRepository.save(user);
+        // Hard delete beneran (lihat UserDeletionService) -- baris user ini
+        // hilang dari tabel users, bukan cuma ganti status. Referensi opsional
+        // di dokumen lain dikosongkan otomatis; kalau user ini masih jadi
+        // pembuat KKA / Ketua Tim STA (kolom wajib di dokumen resmi),
+        // penghapusan dibatalkan dengan pesan error yang jelas.
+        userDeletionService.hardDelete(user);
         return ResponseEntity.ok().build();
     }
 

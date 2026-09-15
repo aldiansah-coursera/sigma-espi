@@ -1,0 +1,51 @@
+# Blueprint untuk deploy backend SIGMA eSPI ke Render (render.com), gratis
+# tanpa kartu kredit (paket Free).
+#
+# Cara pakai:
+#   1. Buka https://dashboard.render.com/blueprints -> "New Blueprint Instance"
+#   2. Hubungkan ke repo GitHub aldiansah-coursera/sigma-espi
+#   3. Render otomatis membaca file ini dan membuatkan service "sigma-backend"
+#   4. Isi env var yang ditandai "sync: false" lewat dashboard Render
+#      (nilainya TIDAK ditaruh di file ini / di GitHub demi keamanan)
+#
+# Database PostgreSQL TIDAK didefinisikan di sini -- disarankan pakai Neon
+# (https://neon.tech, gratis selamanya, tanpa kartu kredit) supaya tidak
+# kena batas 30 hari punya Render. Lihat DEPLOY.md untuk panduan lengkap.
+services:
+  - type: web
+    name: sigma-backend
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/auth/units
+    envVars:
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRATION_HOURS
+        value: "8"
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: FRONTEND_BASE_URL
+        sync: false
+      - key: MAIL_HOST
+        value: smtp.gmail.com
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false

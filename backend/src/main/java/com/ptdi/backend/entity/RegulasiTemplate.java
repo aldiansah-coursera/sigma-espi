@@ -3,6 +3,14 @@ package com.ptdi.backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
+
+/**
+ * "Dokumen Program" (DOK PROG di diagram alur Dukungan Audit): dokumen
+ * referensi/regulasi yang dibuat Dukungan Audit (status Draft), lalu
+ * diperiksa & disetujui Kepala SPI (status Checked -> Approved). Lihat
+ * DukunganAuditDokumenController & KepalaSpiDokumenController.
+ */
 @Entity
 @Table(name = "regulasi_template")
 @Getter
@@ -29,4 +37,17 @@ public class RegulasiTemplate {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "uploaded_by")
     private User uploadedBy;
+
+    // Draft (dibuat Dukungan Audit) -> Checked -> Approved (dua tahap
+    // terakhir oleh Kepala SPI). Default "Draft" di level aplikasi, lihat
+    // DukunganAuditDokumenController.
+    @Column(name = "status")
+    private String status;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "direview_oleh")
+    private User direviewOleh;
+
+    @Column(name = "created_at")
+    private Instant createdAt;
 }

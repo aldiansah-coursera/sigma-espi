@@ -13,12 +13,17 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { ComingSoonPage } from './pages/ComingSoonPage'
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage'
 import { AdminUnitsPage } from './pages/admin/AdminUnitsPage'
+import { AdminReferensiPage } from './pages/admin/AdminReferensiPage'
+import { AdminKompetensiPage } from './pages/admin/AdminKompetensiPage'
 import { KepalaSpiDashboardPage } from './pages/kepala-spi/KepalaSpiDashboardPage'
 import { PersetujuanPkptPage } from './pages/kepala-spi/PersetujuanPkptPage'
+import { PersetujuanPppPage as KepalaSpiPersetujuanPppPage } from './pages/kepala-spi/PersetujuanPppPage'
 import { PenerbitanStaPage } from './pages/kepala-spi/PenerbitanStaPage'
 import { OtorisasiLhaPage } from './pages/kepala-spi/OtorisasiLhaPage'
+import { DokumenProgramReviewPage } from './pages/kepala-spi/DokumenProgramReviewPage'
 import { KetuaTimDashboardPage } from './pages/ketua-tim/KetuaTimDashboardPage'
 import { PengajuanPkaPage } from './pages/ketua-tim/PengajuanPkaPage'
+import { PengajuanPppPage } from './pages/ketua-tim/PengajuanPppPage'
 import { PelaksanaanKkaPage } from './pages/ketua-tim/PelaksanaanKkaPage'
 import { EksposTemuanPage } from './pages/ketua-tim/EksposTemuanPage'
 import { PenyusunanLhaPage } from './pages/ketua-tim/PenyusunanLhaPage'
@@ -29,6 +34,7 @@ import { TemuanAuditKkptPage } from './pages/auditor/TemuanAuditKkptPage'
 import { RevisiKkaTemuanPage } from './pages/auditor/RevisiKkaTemuanPage'
 import { PengawasTimDashboardPage } from './pages/pengawas-tim/PengawasTimDashboardPage'
 import { PersetujuanPkaPage } from './pages/pengawas-tim/PersetujuanPkaPage'
+import { PersetujuanPppPage as PengawasPersetujuanPppPage } from './pages/pengawas-tim/PersetujuanPppPage'
 import { ValidasiKkaTemuanPage } from './pages/pengawas-tim/ValidasiKkaTemuanPage'
 import { JaminanKualitasDashboardPage } from './pages/jaminan-kualitas/JaminanKualitasDashboardPage'
 import { ReviuMetodologiPage } from './pages/jaminan-kualitas/ReviuMetodologiPage'
@@ -38,6 +44,10 @@ import { KonfirmasiTemuanPage } from './pages/auditee/KonfirmasiTemuanPage'
 import { TemuanRekomendasiLhaPage } from './pages/auditee/TemuanRekomendasiLhaPage'
 import { RencanaAksiBuktiPage } from './pages/auditee/RencanaAksiBuktiPage'
 import { SurveiKepuasanPage } from './pages/auditee/SurveiKepuasanPage'
+import { DukunganAuditDashboardPage } from './pages/dukungan-audit/DukunganAuditDashboardPage'
+import { DokumenProgramPage } from './pages/dukungan-audit/DokumenProgramPage'
+import { DataPkptPage } from './pages/dukungan-audit/DataPkptPage'
+import { SuratTugasPage } from './pages/dukungan-audit/SuratTugasPage'
 import {
   ADMIN_ROLE_CODE,
   KEPALA_SPI_ROLE_CODE,
@@ -46,6 +56,8 @@ import {
   PENGAWAS_ROLE_CODE,
   JAMINAN_KUALITAS_ROLE_CODE,
   AUDITEE_ROLE_CODE,
+  DUKUNGAN_AUDIT_ROLE_CODE,
+  DUKUNGAN_AUDIT_STAFF_ROLE_CODE,
   resolveHomeRoute,
 } from './lib/roles'
 
@@ -183,6 +195,22 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/referensi"
+        element={
+          <ProtectedRoute requireRole={ADMIN_ROLE_CODE}>
+            <AdminReferensiPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/kompetensi"
+        element={
+          <ProtectedRoute requireRole={ADMIN_ROLE_CODE}>
+            <AdminKompetensiPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/kepala-spi/dashboard"
         element={
           <ProtectedRoute requireRole={KEPALA_SPI_ROLE_CODE}>
@@ -195,6 +223,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute requireRole={KEPALA_SPI_ROLE_CODE}>
             <PersetujuanPkptPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/kepala-spi/ppp"
+        element={
+          <ProtectedRoute requireRole={KEPALA_SPI_ROLE_CODE}>
+            <KepalaSpiPersetujuanPppPage />
           </ProtectedRoute>
         }
       />
@@ -215,10 +251,26 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/kepala-spi/dokumen-program"
+        element={
+          <ProtectedRoute requireRole={KEPALA_SPI_ROLE_CODE}>
+            <DokumenProgramReviewPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/ketua-tim/dashboard"
         element={
           <ProtectedRoute requireRole={KETUA_TIM_ROLE_CODE}>
             <KetuaTimDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ketua-tim/ppp"
+        element={
+          <ProtectedRoute requireRole={KETUA_TIM_ROLE_CODE}>
+            <PengajuanPppPage />
           </ProtectedRoute>
         }
       />
@@ -267,6 +319,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute requireRole={PENGAWAS_ROLE_CODE}>
             <PengawasTimDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pengawas-tim/persetujuan-ppp"
+        element={
+          <ProtectedRoute requireRole={PENGAWAS_ROLE_CODE}>
+            <PengawasPersetujuanPppPage />
           </ProtectedRoute>
         }
       />
@@ -379,6 +439,38 @@ function AppRoutes() {
         element={
           <ProtectedRoute requireRole={AUDITOR_ROLE_CODE}>
             <RevisiKkaTemuanPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dukungan-audit/dashboard"
+        element={
+          <ProtectedRoute requireRole={[DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE]}>
+            <DukunganAuditDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dukungan-audit/pkpt"
+        element={
+          <ProtectedRoute requireRole={[DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE]}>
+            <DataPkptPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dukungan-audit/surat-tugas"
+        element={
+          <ProtectedRoute requireRole={[DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE]}>
+            <SuratTugasPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dukungan-audit/dokumen-program"
+        element={
+          <ProtectedRoute requireRole={[DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE]}>
+            <DokumenProgramPage />
           </ProtectedRoute>
         }
       />

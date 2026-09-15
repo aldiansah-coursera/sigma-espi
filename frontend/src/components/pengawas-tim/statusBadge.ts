@@ -1,6 +1,9 @@
 // Palet warna badge status khusus modul Pengawas Tim (Persetujuan PKA,
 // Validasi KKA & Temuan). Mengikuti pola components/ketua-tim/statusBadge.ts.
 const STATUS_STYLES: Record<string, string> = {
+  Draft: 'bg-amber-100 text-amber-700',
+  Diajukan: 'bg-indigo-100 text-indigo-700',
+  Diteruskan: 'bg-blue-100 text-blue-700',
   Disetujui: 'bg-emerald-100 text-emerald-700',
   Approved: 'bg-emerald-100 text-emerald-700',
   Valid: 'bg-emerald-100 text-emerald-700',

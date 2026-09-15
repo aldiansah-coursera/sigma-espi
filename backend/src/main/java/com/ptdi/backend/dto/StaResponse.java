@@ -21,4 +21,10 @@ public class StaResponse {
     private String ketuaTim;
     private String diterbitkanOleh;
     private String statusApproval;
+    private Integer pppId;
+    private String dibuatOleh;
+    private String didistribusikanOleh;
+    private String tanggalDistribusi;
+    private String catatanRevisi;
+    private String komposisiTim;
 }

@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
-import { Briefcase, ClipboardList, LayoutGrid, Megaphone, ShieldCheck, Stamp } from 'lucide-react'
+import { Briefcase, ClipboardList, FileSignature, LayoutGrid, Megaphone, ShieldCheck, Stamp } from 'lucide-react'
 import { AppShell } from '../ui/AppShell'
 import type { SidebarNavItem } from '../ui/Sidebar'
 
 export const KETUA_TIM_NAV_ITEMS: SidebarNavItem[] = [
   { label: 'Dashboard Tim', icon: LayoutGrid, path: '/ketua-tim/dashboard' },
+  { label: 'Pengajuan Penugasan (PPP)', icon: FileSignature, path: '/ketua-tim/ppp' },
   { label: 'Pengajuan PKA', icon: ClipboardList, path: '/ketua-tim/pka' },
   { label: 'Pelaksanaan & KKA', icon: Briefcase, path: '/ketua-tim/kka' },
   { label: 'Ekspos Temuan', icon: Megaphone, path: '/ketua-tim/ekspos-temuan' },
