@@ -7,10 +7,12 @@ import {
   ClipboardList,
   Eye,
   FileText,
+  Pencil,
   Plus,
   Send,
   Stamp,
   Trash2,
+  Undo2,
   UploadCloud,
   X,
 } from 'lucide-react'
@@ -20,7 +22,7 @@ import { StatCard } from '../../components/ui/StatCard'
 import { useAuth } from '../../context/useAuth'
 import { extractErrorMessage } from '../../lib/api'
 import { DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE } from '../../lib/roles'
-import type { ObjekPengawasanInput, PkptItem } from '../../services/dukunganAuditService'
+import type { ObjekPengawasanInput, PkptItem, PkptObjekRingkas } from '../../services/dukunganAuditService'
 import {
   PRIORITAS_RISIKO_OPTIONS,
   ajukanPkpt,
@@ -28,9 +30,13 @@ import {
   getPkptFileBlob,
   getPkptList,
   getUnitOptions,
+  hapusObjekPkpt,
   hapusPkptDraft,
   hapusPkptFile,
+  kembalikanPkpt,
+  tambahObjekPkpt,
   terbitkanPkpt,
+  ubahObjekPkpt,
   uploadPkptFile,
 } from '../../services/dukunganAuditService'
 
@@ -82,7 +88,6 @@ export function DataPkptPage() {
   const [namaPkpt, setNamaPkpt] = useState('')
   const [tanggalMulai, setTanggalMulai] = useState('')
   const [tanggalSelesai, setTanggalSelesai] = useState('')
-  const [objekRows, setObjekRows] = useState<ObjekPengawasanInput[]>([])
   const [buktiFile, setBuktiFile] = useState<File | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState('')
@@ -90,6 +95,12 @@ export function DataPkptPage() {
   const [fileBusyId, setFileBusyId] = useState<number | null>(null)
   const [uploadRowId, setUploadRowId] = useState<number | null>(null)
   const rowFileInputRef = useRef<HTMLInputElement>(null)
+
+  // Objek pengawasan diisi staf SETELAH PKPT diterbitkan (bukan lagi saat draf).
+  const [addObjekOpenId, setAddObjekOpenId] = useState<number | null>(null)
+  const [newObjekRow, setNewObjekRow] = useState<ObjekPengawasanInput>(emptyObjekRow(''))
+  const [editingObjek, setEditingObjek] = useState<{ pkptId: number; objekId: number; row: ObjekPengawasanInput } | null>(null)
+  const [objekBusyId, setObjekBusyId] = useState<number | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -131,7 +142,6 @@ export function DataPkptPage() {
     setNamaPkpt('')
     setTanggalMulai('')
     setTanggalSelesai('')
-    setObjekRows([emptyObjekRow(units[0] ?? '')])
     setBuktiFile(null)
     setShowForm(true)
   }
@@ -149,10 +159,6 @@ export function DataPkptPage() {
     setBuktiFile(file)
   }
 
-  function updateObjekRow(index: number, patch: Partial<ObjekPengawasanInput>) {
-    setObjekRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)))
-  }
-
   async function submitDraft() {
     if (!namaPkpt.trim()) {
       setFormError('Nama PKPT wajib diisi.')
@@ -166,11 +172,6 @@ export function DataPkptPage() {
       setFormError('Tanggal selesai tidak boleh sebelum tanggal mulai.')
       return
     }
-    const objekValid = objekRows.filter((o) => o.unitKerja && o.jenisPengawasan.trim())
-    if (objekValid.length === 0) {
-      setFormError('Minimal 1 objek pengawasan (unit kerja + jenis pengawasan) wajib diisi.')
-      return
-    }
 
     setFormError('')
     setIsSaving(true)
@@ -180,7 +181,6 @@ export function DataPkptPage() {
         namaPkpt: namaPkpt.trim(),
         tanggalMulai,
         tanggalSelesai,
-        objekPengawasan: objekValid.map((o) => ({ ...o, jenisPengawasan: o.jenisPengawasan.trim() })),
       })
       if (buktiFile) {
         try {
@@ -216,6 +216,79 @@ export function DataPkptPage() {
   async function handleHapus(p: PkptItem) {
     if (!window.confirm(`Hapus draf PKPT "${p.namaPkpt}"?`)) return
     await runAction(p.pkptId, hapusPkptDraft, 'Gagal menghapus draf PKPT.')
+  }
+
+  /** Koordinator mengembalikan draf ke staf dengan catatan, sebelum diajukan ke Kepala SPI. */
+  async function handleKembalikan(p: PkptItem) {
+    const catatan = window.prompt(`Catatan revisi untuk draf "${p.namaPkpt}":`, '')
+    if (catatan === null) return
+    if (!catatan.trim()) {
+      window.alert('Catatan revisi wajib diisi.')
+      return
+    }
+    await runAction(p.pkptId, (id) => kembalikanPkpt(id, catatan.trim()), 'Gagal mengembalikan draf PKPT.')
+  }
+
+  function openAddObjek(pkptId: number) {
+    setAddObjekOpenId(pkptId)
+    setNewObjekRow(emptyObjekRow(units[0] ?? ''))
+  }
+
+  async function submitAddObjek(pkptId: number) {
+    if (!newObjekRow.unitKerja || !newObjekRow.jenisPengawasan.trim()) {
+      window.alert('Unit kerja dan jenis pengawasan wajib diisi.')
+      return
+    }
+    setObjekBusyId(pkptId)
+    try {
+      await tambahObjekPkpt(pkptId, { ...newObjekRow, jenisPengawasan: newObjekRow.jenisPengawasan.trim() })
+      await refresh()
+      setAddObjekOpenId(null)
+    } catch (err) {
+      window.alert(extractErrorMessage(err, 'Gagal menambah objek pengawasan.'))
+    } finally {
+      setObjekBusyId(null)
+    }
+  }
+
+  function startEditObjek(pkptId: number, o: PkptObjekRingkas) {
+    setEditingObjek({
+      pkptId,
+      objekId: o.objekId,
+      row: { unitKerja: o.unitKerja, jenisPengawasan: o.jenisPengawasan, prioritasRisiko: o.prioritasRisiko },
+    })
+  }
+
+  async function submitEditObjek() {
+    if (!editingObjek) return
+    const { pkptId, objekId, row } = editingObjek
+    if (!row.unitKerja || !row.jenisPengawasan.trim()) {
+      window.alert('Unit kerja dan jenis pengawasan wajib diisi.')
+      return
+    }
+    setObjekBusyId(objekId)
+    try {
+      await ubahObjekPkpt(pkptId, objekId, { ...row, jenisPengawasan: row.jenisPengawasan.trim() })
+      await refresh()
+      setEditingObjek(null)
+    } catch (err) {
+      window.alert(extractErrorMessage(err, 'Gagal mengubah objek pengawasan.'))
+    } finally {
+      setObjekBusyId(null)
+    }
+  }
+
+  async function handleHapusObjek(pkptId: number, objekId: number) {
+    if (!window.confirm('Hapus objek pengawasan ini?')) return
+    setObjekBusyId(objekId)
+    try {
+      await hapusObjekPkpt(pkptId, objekId)
+      await refresh()
+    } catch (err) {
+      window.alert(extractErrorMessage(err, 'Gagal menghapus objek pengawasan.'))
+    } finally {
+      setObjekBusyId(null)
+    }
   }
 
   function triggerRowUpload(id: number) {
@@ -317,7 +390,8 @@ export function DataPkptPage() {
         <section className="rounded-2xl bg-[#e7ebf6] p-6">
           <h2 className="text-lg font-bold text-blue-950">Susun Draf PKPT</h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            Draf berstatus &quot;Draft&quot; sampai Anda mengajukannya ke Kepala SPI.
+            Draf berstatus &quot;Draft&quot; sampai Anda mengajukannya ke Kepala SPI. Objek pengawasan baru
+            diisi setelah PKPT ini diterbitkan.
           </p>
 
           <div className="mt-5 space-y-4">
@@ -361,66 +435,6 @@ export function DataPkptPage() {
                   onChange={(e) => setTanggalSelesai(e.target.value)}
                   className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold uppercase tracking-wide text-blue-900/50">
-                  Objek Pengawasan
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setObjekRows((prev) => [...prev, emptyObjekRow(units[0] ?? '')])}
-                  className="flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-xs font-semibold text-blue-700 shadow-sm hover:bg-blue-50"
-                >
-                  <Plus size={13} />
-                  Tambah Objek
-                </button>
-              </div>
-
-              <div className="mt-2 space-y-2">
-                {objekRows.map((row, index) => (
-                  <div key={index} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1.3fr_0.8fr_auto]">
-                    <select
-                      value={row.unitKerja}
-                      onChange={(e) => updateObjekRow(index, { unitKerja: e.target.value })}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    >
-                      {units.map((u) => (
-                        <option key={u} value={u}>
-                          {u}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      value={row.jenisPengawasan}
-                      onChange={(e) => updateObjekRow(index, { jenisPengawasan: e.target.value })}
-                      placeholder="Jenis pengawasan"
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    />
-                    <select
-                      value={row.prioritasRisiko}
-                      onChange={(e) => updateObjekRow(index, { prioritasRisiko: e.target.value })}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    >
-                      {PRIORITAS_RISIKO_OPTIONS.map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => setObjekRows((prev) => prev.filter((_, i) => i !== index))}
-                      title="Hapus baris"
-                      className="flex h-9 w-9 items-center justify-center justify-self-end rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
               </div>
             </div>
 
@@ -523,15 +537,27 @@ export function DataPkptPage() {
                     {p.status === 'Draft' && (
                       <>
                         {isKoordinator && (
-                          <button
-                            type="button"
-                            disabled={isBusy}
-                            onClick={() => void runAction(p.pkptId, ajukanPkpt, 'Gagal mengajukan PKPT.')}
-                            className="flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <Send size={13} />
-                            Ajukan
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => void handleKembalikan(p)}
+                              title="Kembalikan ke staf dengan catatan"
+                              className="flex items-center gap-1 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Undo2 size={13} />
+                              Kembalikan
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => void runAction(p.pkptId, ajukanPkpt, 'Gagal mengajukan PKPT.')}
+                              className="flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Send size={13} />
+                              Ajukan
+                            </button>
+                          </>
                         )}
                         {isStaff && (
                           <button
@@ -562,7 +588,7 @@ export function DataPkptPage() {
 
                 {p.catatanRevisi && p.status === 'Draft' && (
                   <p className="px-5 pb-3 text-xs font-semibold text-amber-700">
-                    Catatan Kepala SPI: {p.catatanRevisi}
+                    Catatan revisi: {p.catatanRevisi}
                   </p>
                 )}
 
@@ -643,20 +669,178 @@ export function DataPkptPage() {
                     </div>
 
                     <div className="mt-4">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-blue-900/50">
-                        Objek Pengawasan ({p.totalObjek})
-                      </div>
-                      <div className="mt-2 space-y-2">
-                        {p.objekPengawasan.map((o) => (
-                          <div
-                            key={o.objekId}
-                            className="grid grid-cols-1 gap-2 rounded-xl bg-slate-50 px-4 py-2.5 text-sm sm:grid-cols-[1fr_1.3fr_0.6fr]"
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-blue-900/50">
+                          Objek Pengawasan ({p.totalObjek})
+                        </div>
+                        {isStaff && p.status === 'Diterbitkan' && addObjekOpenId !== p.pkptId && (
+                          <button
+                            type="button"
+                            onClick={() => openAddObjek(p.pkptId)}
+                            className="flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-xs font-semibold text-blue-700 shadow-sm hover:bg-blue-50"
                           >
-                            <span className="truncate text-slate-700">{o.unitKerja}</span>
-                            <span className="truncate text-slate-600">{o.jenisPengawasan}</span>
-                            <span className="truncate text-xs text-slate-500">Risiko: {o.prioritasRisiko}</span>
+                            <Plus size={13} />
+                            Tambah Objek
+                          </button>
+                        )}
+                      </div>
+                      {isStaff && p.status !== 'Diterbitkan' && (
+                        <p className="mt-1 text-xs text-slate-400">
+                          Objek pengawasan bisa ditambahkan setelah PKPT ini diterbitkan.
+                        </p>
+                      )}
+
+                      <div className="mt-2 space-y-2">
+                        {p.objekPengawasan.map((o) => {
+                          const isEditing = editingObjek?.objekId === o.objekId
+                          const rowBusy = objekBusyId === o.objekId
+                          if (isEditing && editingObjek) {
+                            return (
+                              <div
+                                key={o.objekId}
+                                className="grid grid-cols-1 gap-2 rounded-xl bg-blue-50 px-4 py-2.5 sm:grid-cols-[1fr_1.3fr_0.8fr_auto]"
+                              >
+                                <select
+                                  value={editingObjek.row.unitKerja}
+                                  onChange={(e) =>
+                                    setEditingObjek({ ...editingObjek, row: { ...editingObjek.row, unitKerja: e.target.value } })
+                                  }
+                                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                                >
+                                  {units.map((u) => (
+                                    <option key={u} value={u}>
+                                      {u}
+                                    </option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  value={editingObjek.row.jenisPengawasan}
+                                  onChange={(e) =>
+                                    setEditingObjek({ ...editingObjek, row: { ...editingObjek.row, jenisPengawasan: e.target.value } })
+                                  }
+                                  placeholder="Jenis pengawasan"
+                                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                                />
+                                <select
+                                  value={editingObjek.row.prioritasRisiko}
+                                  onChange={(e) =>
+                                    setEditingObjek({ ...editingObjek, row: { ...editingObjek.row, prioritasRisiko: e.target.value } })
+                                  }
+                                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                                >
+                                  {PRIORITAS_RISIKO_OPTIONS.map((pr) => (
+                                    <option key={pr} value={pr}>
+                                      {pr}
+                                    </option>
+                                  ))}
+                                </select>
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    disabled={rowBusy}
+                                    onClick={() => void submitEditObjek()}
+                                    className="rounded-lg bg-blue-700 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Simpan
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={rowBusy}
+                                    onClick={() => setEditingObjek(null)}
+                                    className="rounded-lg bg-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-300"
+                                  >
+                                    Batal
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          }
+                          return (
+                            <div
+                              key={o.objekId}
+                              className="grid grid-cols-1 gap-2 rounded-xl bg-slate-50 px-4 py-2.5 text-sm sm:grid-cols-[1fr_1.3fr_0.6fr_auto]"
+                            >
+                              <span className="truncate text-slate-700">{o.unitKerja}</span>
+                              <span className="truncate text-slate-600">{o.jenisPengawasan}</span>
+                              <span className="truncate text-xs text-slate-500">Risiko: {o.prioritasRisiko}</span>
+                              {isStaff && p.status === 'Diterbitkan' && (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    disabled={rowBusy}
+                                    onClick={() => startEditObjek(p.pkptId, o)}
+                                    title="Ubah objek pengawasan"
+                                    className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-blue-700 shadow-sm hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <Pencil size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={rowBusy}
+                                    onClick={() => void handleHapusObjek(p.pkptId, o.objekId)}
+                                    title="Hapus objek pengawasan"
+                                    className="flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+
+                        {addObjekOpenId === p.pkptId && (
+                          <div className="grid grid-cols-1 gap-2 rounded-xl bg-blue-50 px-4 py-2.5 sm:grid-cols-[1fr_1.3fr_0.8fr_auto]">
+                            <select
+                              value={newObjekRow.unitKerja}
+                              onChange={(e) => setNewObjekRow((prev) => ({ ...prev, unitKerja: e.target.value }))}
+                              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                            >
+                              {units.map((u) => (
+                                <option key={u} value={u}>
+                                  {u}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              value={newObjekRow.jenisPengawasan}
+                              onChange={(e) => setNewObjekRow((prev) => ({ ...prev, jenisPengawasan: e.target.value }))}
+                              placeholder="Jenis pengawasan"
+                              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                            />
+                            <select
+                              value={newObjekRow.prioritasRisiko}
+                              onChange={(e) => setNewObjekRow((prev) => ({ ...prev, prioritasRisiko: e.target.value }))}
+                              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                            >
+                              {PRIORITAS_RISIKO_OPTIONS.map((pr) => (
+                                <option key={pr} value={pr}>
+                                  {pr}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                disabled={objekBusyId === p.pkptId}
+                                onClick={() => void submitAddObjek(p.pkptId)}
+                                className="rounded-lg bg-blue-700 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Simpan
+                              </button>
+                              <button
+                                type="button"
+                                disabled={objekBusyId === p.pkptId}
+                                onClick={() => setAddObjekOpenId(null)}
+                                className="rounded-lg bg-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-300"
+                              >
+                                Batal
+                              </button>
+                            </div>
                           </div>
-                        ))}
+                        )}
                       </div>
                     </div>
                   </div>

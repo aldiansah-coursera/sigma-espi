@@ -181,12 +181,13 @@ export function PengajuanPppPage() {
         <section className="rounded-2xl bg-[#e7ebf6] p-6">
           <h2 className="text-lg font-bold text-blue-950">Usulan PPP Baru</h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            Hanya objek pengawasan dari PKPT yang sudah disahkan dan belum punya PPP yang bisa dipilih.
+            Hanya objek pengawasan dari PKPT yang sudah diterbitkan dan belum punya PPP yang bisa dipilih.
           </p>
 
           {objekOptions.length === 0 ? (
             <div className="mt-5 rounded-2xl bg-white px-5 py-8 text-center text-sm text-slate-400 shadow-sm">
-              Belum ada objek pengawasan yang siap diusulkan. Tunggu PKPT disahkan Kepala SPI dulu.
+              Belum ada objek pengawasan yang siap diusulkan. Tunggu PKPT diterbitkan dan Dukungan Audit Staff
+              melengkapi objek pengawasannya dulu.
             </div>
           ) : (
             <div className="mt-5 space-y-4">

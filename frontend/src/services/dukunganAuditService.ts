@@ -115,7 +115,6 @@ export interface PkptPayload {
   namaPkpt: string
   tanggalMulai: string
   tanggalSelesai: string
-  objekPengawasan: ObjekPengawasanInput[]
 }
 
 export async function getPkptList(): Promise<PkptItem[]> {
@@ -179,8 +178,29 @@ export async function ajukanPkpt(id: number): Promise<void> {
   await api.post(`/api/dukungan-audit/pkpt/${id}/ajukan`)
 }
 
+/** Koordinator mengembalikan draf ke staf (dengan catatan) sebelum diajukan ke Kepala SPI. */
+export async function kembalikanPkpt(id: number, catatan: string): Promise<void> {
+  await api.post(`/api/dukungan-audit/pkpt/${id}/kembalikan`, { catatan })
+}
+
 export async function terbitkanPkpt(id: number): Promise<void> {
   await api.post(`/api/dukungan-audit/pkpt/${id}/terbitkan`)
+}
+
+/**
+ * Objek pengawasan diisi staf SETELAH PKPT diterbitkan -- inilah yang
+ * nantinya dipilih Ketua Tim saat mengusulkan PPP.
+ */
+export async function tambahObjekPkpt(pkptId: number, input: ObjekPengawasanInput): Promise<void> {
+  await api.post(`/api/dukungan-audit/pkpt/${pkptId}/objek`, input)
+}
+
+export async function ubahObjekPkpt(pkptId: number, objekId: number, input: ObjekPengawasanInput): Promise<void> {
+  await api.put(`/api/dukungan-audit/pkpt/${pkptId}/objek/${objekId}`, input)
+}
+
+export async function hapusObjekPkpt(pkptId: number, objekId: number): Promise<void> {
+  await api.delete(`/api/dukungan-audit/pkpt/${pkptId}/objek/${objekId}`)
 }
 
 export async function hapusPkptDraft(id: number): Promise<void> {

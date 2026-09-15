@@ -1,5 +1,6 @@
 package com.ptdi.backend.controller;
 
+import com.ptdi.backend.dto.CatatanRevisiRequest;
 import com.ptdi.backend.dto.CreatePkptRequest;
 import com.ptdi.backend.dto.ObjekPengawasanInput;
 import com.ptdi.backend.dto.ObjekPengawasanResponse;
@@ -10,6 +11,7 @@ import com.ptdi.backend.entity.Unit;
 import com.ptdi.backend.entity.User;
 import com.ptdi.backend.exception.ApiException;
 import com.ptdi.backend.repository.ObjekPengawasanRepository;
+import com.ptdi.backend.repository.PenugasanPppRepository;
 import com.ptdi.backend.repository.PkptRepository;
 import com.ptdi.backend.repository.UnitRepository;
 import com.ptdi.backend.repository.UserRepository;
@@ -39,7 +41,13 @@ import java.util.Map;
  * KepalaSpiPkptController.
  *
  * Status: Draft -> Diajukan -> Checked -> Approved -> Diterbitkan.
- * Kalau Kepala SPI mengembalikan, status balik ke Draft + catatan revisi.
+ * Kalau Kepala SPI mengembalikan, status balik ke Draft + catatan revisi --
+ * begitu juga kalau koordinator (Dukungan Audit) mengembalikan draf ke staf
+ * sebelum sempat diajukan ke Kepala SPI (lihat endpoint kembalikan()).
+ *
+ * Objek pengawasan TIDAK lagi diisi saat menyusun draf -- staf baru
+ * melengkapinya setelah PKPT berstatus Diterbitkan, sebagai bahan Ketua
+ * Tim mengusulkan PPP (lihat endpoint .../objek di bawah).
  */
 @RestController
 @RequestMapping("/api/dukungan-audit/pkpt")
@@ -56,6 +64,7 @@ public class DukunganAuditPkptController {
 
     private final PkptRepository pkptRepository;
     private final ObjekPengawasanRepository objekPengawasanRepository;
+    private final PenugasanPppRepository penugasanPppRepository;
     private final UnitRepository unitRepository;
     private final UserRepository userRepository;
 
@@ -91,12 +100,10 @@ public class DukunganAuditPkptController {
                 .build();
         pkpt = pkptRepository.save(pkpt);
 
-        simpanObjek(pkpt, request.getObjekPengawasan());
-
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("pkptId", pkpt.getPkptId()));
     }
 
-    /** Ubah isi draf selama statusnya masih Draft (termasuk setelah dikembalikan Kepala SPI). */
+    /** Ubah isi draf selama statusnya masih Draft (termasuk setelah dikembalikan koordinator/Kepala SPI). */
     @PutMapping("/{id}")
     public ResponseEntity<Void> update(@PathVariable Integer id, @RequestBody CreatePkptRequest request, @AuthenticationPrincipal Jwt jwt) {
         requireStaff(jwt);
@@ -112,13 +119,6 @@ public class DukunganAuditPkptController {
         pkpt.setTanggalSelesai(request.getTanggalSelesai());
         pkptRepository.save(pkpt);
 
-        // Objek pengawasan ditulis ulang supaya isinya persis seperti form.
-        List<ObjekPengawasan> objekLama = objekPengawasanRepository.findAll().stream()
-                .filter(o -> o.getPkpt() != null && pkpt.getPkptId().equals(o.getPkpt().getPkptId()))
-                .toList();
-        objekPengawasanRepository.deleteAll(objekLama);
-        simpanObjek(pkpt, request.getObjekPengawasan());
-
         return ResponseEntity.ok().build();
     }
 
@@ -131,6 +131,27 @@ public class DukunganAuditPkptController {
         }
         pkpt.setStatus(STATUS_DIAJUKAN);
         pkpt.setCatatanRevisi(null);
+        pkptRepository.save(pkpt);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Koordinator (Dukungan Audit) mengembalikan draf ke staf dengan catatan
+     * SEBELUM diajukan ke Kepala SPI -- staf yang mengedit ulang lewat
+     * update(), lalu koordinator memanggil ajukan() lagi kalau sudah oke.
+     */
+    @PostMapping("/{id}/kembalikan")
+    public ResponseEntity<Void> kembalikan(@PathVariable Integer id, @RequestBody(required = false) CatatanRevisiRequest request,
+                                           @AuthenticationPrincipal Jwt jwt) {
+        requireKoordinator(jwt);
+        Pkpt pkpt = findOrThrow(id);
+        if (!STATUS_DRAFT.equals(pkpt.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "PKPT hanya bisa dikembalikan ke staf selama masih berstatus Draft");
+        }
+        pkpt.setStatus(STATUS_DRAFT);
+        pkpt.setCatatanRevisi(request != null && StringUtils.hasText(request.getCatatan())
+                ? request.getCatatan().trim()
+                : "Dikembalikan Dukungan Audit untuk diperbaiki.");
         pkptRepository.save(pkpt);
         return ResponseEntity.ok().build();
     }
@@ -244,34 +265,96 @@ public class DukunganAuditPkptController {
                 || request.getTahunAnggaran() == null
                 || !StringUtils.hasText(request.getNamaPkpt())
                 || request.getTanggalMulai() == null
-                || request.getTanggalSelesai() == null
-                || request.getObjekPengawasan() == null
-                || request.getObjekPengawasan().isEmpty()) {
+                || request.getTanggalSelesai() == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Tahun anggaran, nama PKPT, periode, dan minimal 1 objek pengawasan wajib diisi");
+                    "Tahun anggaran, nama PKPT, dan periode wajib diisi");
         }
         if (request.getTanggalSelesai().isBefore(request.getTanggalMulai())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Tanggal selesai tidak boleh sebelum tanggal mulai");
         }
     }
 
-    private void simpanObjek(Pkpt pkpt, List<ObjekPengawasanInput> inputs) {
-        for (ObjekPengawasanInput input : inputs) {
-            if (!StringUtils.hasText(input.getUnitKerja()) || !StringUtils.hasText(input.getJenisPengawasan())) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Unit kerja dan jenis pengawasan wajib diisi tiap objek");
-            }
-            Unit unit = unitRepository.findAll().stream()
-                    .filter(u -> u.getNamaUnit().equalsIgnoreCase(input.getUnitKerja()))
-                    .findFirst()
-                    .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Unit kerja tidak dikenali"));
-            objekPengawasanRepository.save(ObjekPengawasan.builder()
-                    .pkpt(pkpt)
-                    .unit(unit)
-                    .jenisPengawasan(input.getJenisPengawasan().trim())
-                    .prioritasRisiko(StringUtils.hasText(input.getPrioritasRisiko()) ? input.getPrioritasRisiko() : "Sedang")
-                    .status("Terjadwal")
-                    .build());
+    /**
+     * Staf menambahkan objek pengawasan setelah PKPT diterbitkan -- inilah
+     * yang jadi bahan Ketua Tim memilih objek saat mengusulkan PPP
+     * (lihat KetuaTimPppController.getObjekOptions()).
+     */
+    @PostMapping("/{id}/objek")
+    public ResponseEntity<Void> tambahObjek(@PathVariable Integer id, @RequestBody ObjekPengawasanInput request,
+                                            @AuthenticationPrincipal Jwt jwt) {
+        requireStaff(jwt);
+        Pkpt pkpt = findOrThrow(id);
+        if (!STATUS_DITERBITKAN.equals(pkpt.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "Objek pengawasan hanya bisa ditambahkan setelah PKPT diterbitkan");
         }
+        objekPengawasanRepository.save(buildObjek(pkpt, request));
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @PutMapping("/{id}/objek/{objekId}")
+    public ResponseEntity<Void> ubahObjek(@PathVariable Integer id, @PathVariable Integer objekId,
+                                          @RequestBody ObjekPengawasanInput request, @AuthenticationPrincipal Jwt jwt) {
+        requireStaff(jwt);
+        Pkpt pkpt = findOrThrow(id);
+        ObjekPengawasan objek = findObjekOrThrow(pkpt, objekId);
+        if (sudahDipakaiPpp(objekId)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Objek pengawasan ini sudah dipakai PPP, tidak bisa diubah");
+        }
+        if (!StringUtils.hasText(request.getUnitKerja()) || !StringUtils.hasText(request.getJenisPengawasan())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Unit kerja dan jenis pengawasan wajib diisi");
+        }
+        objek.setUnit(resolveUnit(request.getUnitKerja()));
+        objek.setJenisPengawasan(request.getJenisPengawasan().trim());
+        objek.setPrioritasRisiko(StringUtils.hasText(request.getPrioritasRisiko()) ? request.getPrioritasRisiko() : "Sedang");
+        objekPengawasanRepository.save(objek);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{id}/objek/{objekId}")
+    public ResponseEntity<Void> hapusObjek(@PathVariable Integer id, @PathVariable Integer objekId,
+                                           @AuthenticationPrincipal Jwt jwt) {
+        requireStaff(jwt);
+        Pkpt pkpt = findOrThrow(id);
+        ObjekPengawasan objek = findObjekOrThrow(pkpt, objekId);
+        if (sudahDipakaiPpp(objekId)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Objek pengawasan ini sudah dipakai PPP, tidak bisa dihapus");
+        }
+        objekPengawasanRepository.delete(objek);
+        return ResponseEntity.ok().build();
+    }
+
+    private ObjekPengawasan findObjekOrThrow(Pkpt pkpt, Integer objekId) {
+        ObjekPengawasan objek = objekPengawasanRepository.findById(objekId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Objek pengawasan tidak ditemukan"));
+        if (objek.getPkpt() == null || !pkpt.getPkptId().equals(objek.getPkpt().getPkptId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Objek pengawasan ini bukan milik PKPT ini");
+        }
+        return objek;
+    }
+
+    private boolean sudahDipakaiPpp(Integer objekId) {
+        return penugasanPppRepository.findAll().stream()
+                .anyMatch(p -> p.getObjek() != null && objekId.equals(p.getObjek().getObjekId()));
+    }
+
+    private Unit resolveUnit(String namaUnit) {
+        return unitRepository.findAll().stream()
+                .filter(u -> u.getNamaUnit().equalsIgnoreCase(namaUnit))
+                .findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Unit kerja tidak dikenali"));
+    }
+
+    private ObjekPengawasan buildObjek(Pkpt pkpt, ObjekPengawasanInput input) {
+        if (!StringUtils.hasText(input.getUnitKerja()) || !StringUtils.hasText(input.getJenisPengawasan())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Unit kerja dan jenis pengawasan wajib diisi");
+        }
+        return ObjekPengawasan.builder()
+                .pkpt(pkpt)
+                .unit(resolveUnit(input.getUnitKerja()))
+                .jenisPengawasan(input.getJenisPengawasan().trim())
+                .prioritasRisiko(StringUtils.hasText(input.getPrioritasRisiko()) ? input.getPrioritasRisiko() : "Sedang")
+                .status("Terjadwal")
+                .build();
     }
 
     private Pkpt findOrThrow(Integer id) {

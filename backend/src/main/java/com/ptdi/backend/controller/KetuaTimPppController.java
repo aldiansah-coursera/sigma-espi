@@ -35,7 +35,9 @@ import java.util.stream.Collectors;
 public class KetuaTimPppController {
 
     // Objek pengawasan baru bisa diusulkan kalau PKPT-nya sudah disahkan.
-    private static final Set<String> STATUS_PKPT_SIAP = Set.of("Approved", "Diterbitkan");
+    // Objek pengawasan baru dibuat staf SETELAH PKPT diterbitkan (lihat
+    // DukunganAuditPkptController.tambahObjek()), jadi cukup filter status ini.
+    private static final Set<String> STATUS_PKPT_SIAP = Set.of("Diterbitkan");
 
     private final PenugasanPppRepository penugasanPppRepository;
     private final ObjekPengawasanRepository objekPengawasanRepository;
