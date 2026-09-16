@@ -54,7 +54,8 @@ public class RegulasiTemplate {
     // Berkas PDF asli (menggantikan field file_url yang tadinya diisi
     // manual sebagai teks link) -- disimpan langsung di database (bytea),
     // sama seperti pola di entity Pkpt.
-    @Lob
+    // TANPA @Lob dengan sengaja -- lihat catatan di entity Pkpt (fileBuktiData)
+    // soal kenapa @Lob pada byte[] + Postgres berujung "Unable to access lob stream".
     @Column(name = "file_bukti_data")
     private byte[] fileBuktiData;
 

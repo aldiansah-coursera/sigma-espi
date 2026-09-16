@@ -59,7 +59,11 @@ public class Pkpt {
     // menyusun draf -- bisa dilihat oleh Dukungan Audit (koordinator & staf)
     // maupun Kepala SPI. Disimpan langsung di database (bytea) supaya tidak
     // perlu storage terpisah.
-    @Lob
+    // TANPA @Lob dengan sengaja -- byte[] biasa dipetakan Hibernate ke
+    // VARBINARY (kolom bytea di Postgres) lewat setBytes()/getBytes() biasa.
+    // Dengan @Lob, Hibernate malah memakai jalur BLOB/LargeObjectManager
+    // driver PG (kolom oid, bukan bytea) yang berujung error
+    // "Unable to access lob stream" saat insert/select.
     @Column(name = "file_bukti_data")
     private byte[] fileBuktiData;
 
