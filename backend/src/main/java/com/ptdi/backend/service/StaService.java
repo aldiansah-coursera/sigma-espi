@@ -16,7 +16,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * Helper bersama alur Surat Tugas (ST) tahap 08-10 flowmap SIGMA v3.0:
- * Dukungan Audit membuat draf & mendistribusikan, Kepala SPI
+ * Dukungan Audit (role tunggal, tidak lagi dipecah staf/koordinator)
+ * membuat draf, mengajukan, & mendistribusikan sendiri; Kepala SPI
  * menandatangani.
  */
 @Service
@@ -29,9 +30,6 @@ public class StaService {
     public static final String STATUS_DIDISTRIBUSIKAN = "Didistribusikan";
     /** Data lama sebelum alur v3.0 -- dianggap sudah beredar. */
     public static final String STATUS_LAMA_ACTIVE = "Active";
-    private static final String ROLE_DUKUNGAN_AUDIT_KOORDINATOR = "Dukungan Audit";
-    private static final String ROLE_DUKUNGAN_AUDIT_STAFF = "Dukungan Audit Staff";
-
     private final PenugasanStaRepository penugasanStaRepository;
     private final UserRepository userRepository;
 
@@ -43,30 +41,6 @@ public class StaService {
     public User currentUser(Jwt jwt) {
         return userRepository.findByEmail(jwt.getSubject())
                 .orElseThrow(() -> new UsernameNotFoundException("User tidak ditemukan"));
-    }
-
-    /**
-     * Hanya "Dukungan Audit" (koordinator) yang boleh mengajukan ST ke
-     * Kepala SPI dan mendistribusikan ST yang sudah ditandatangani -- staf
-     * ("Dukungan Audit Staff") hanya boleh menyusun draf ST.
-     */
-    public void requireKoordinator(Jwt jwt) {
-        User current = currentUser(jwt);
-        boolean isKoordinator = current.getRole() != null
-                && ROLE_DUKUNGAN_AUDIT_KOORDINATOR.equals(current.getRole().getNamaRole());
-        if (!isKoordinator) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Hanya Dukungan Audit (koordinator) yang bisa mengajukan/mendistribusikan Surat Tugas");
-        }
-    }
-
-    /** Membuat draf ST & menghapusnya hanya boleh "Dukungan Audit Staff". */
-    public void requireStaff(Jwt jwt) {
-        User current = currentUser(jwt);
-        boolean isStaff = current.getRole() != null
-                && ROLE_DUKUNGAN_AUDIT_STAFF.equals(current.getRole().getNamaRole());
-        if (!isStaff) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Hanya Dukungan Audit Staff yang bisa menyusun/menghapus draf Surat Tugas");
-        }
     }
 
     public StaResponse toResponse(PenugasanSta sta) {

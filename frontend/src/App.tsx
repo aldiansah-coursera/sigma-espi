@@ -57,7 +57,6 @@ import {
   JAMINAN_KUALITAS_ROLE_CODE,
   AUDITEE_ROLE_CODE,
   DUKUNGAN_AUDIT_ROLE_CODE,
-  DUKUNGAN_AUDIT_STAFF_ROLE_CODE,
   resolveHomeRoute,
 } from './lib/roles'
 
@@ -445,7 +444,7 @@ function AppRoutes() {
       <Route
         path="/dukungan-audit/dashboard"
         element={
-          <ProtectedRoute requireRole={[DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE]}>
+          <ProtectedRoute requireRole={DUKUNGAN_AUDIT_ROLE_CODE}>
             <DukunganAuditDashboardPage />
           </ProtectedRoute>
         }
@@ -453,7 +452,7 @@ function AppRoutes() {
       <Route
         path="/dukungan-audit/pkpt"
         element={
-          <ProtectedRoute requireRole={[DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE]}>
+          <ProtectedRoute requireRole={DUKUNGAN_AUDIT_ROLE_CODE}>
             <DataPkptPage />
           </ProtectedRoute>
         }
@@ -461,7 +460,7 @@ function AppRoutes() {
       <Route
         path="/dukungan-audit/surat-tugas"
         element={
-          <ProtectedRoute requireRole={[DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE]}>
+          <ProtectedRoute requireRole={DUKUNGAN_AUDIT_ROLE_CODE}>
             <SuratTugasPage />
           </ProtectedRoute>
         }
@@ -469,7 +468,7 @@ function AppRoutes() {
       <Route
         path="/dukungan-audit/dokumen-program"
         element={
-          <ProtectedRoute requireRole={[DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE]}>
+          <ProtectedRoute requireRole={DUKUNGAN_AUDIT_ROLE_CODE}>
             <DokumenProgramPage />
           </ProtectedRoute>
         }

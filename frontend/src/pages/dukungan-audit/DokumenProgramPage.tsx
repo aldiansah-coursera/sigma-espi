@@ -15,9 +15,7 @@ import {
 import { DukunganAuditShell } from '../../components/dukungan-audit/DukunganAuditShell'
 import { dukunganAuditStatusBadgeClass } from '../../components/dukungan-audit/statusBadge'
 import { StatCard } from '../../components/ui/StatCard'
-import { useAuth } from '../../context/useAuth'
 import { extractErrorMessage } from '../../lib/api'
-import { DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE } from '../../lib/roles'
 import type { DokumenProgram } from '../../services/dukunganAuditService'
 import {
   ajukanDokumen,
@@ -52,9 +50,6 @@ function formatFileSize(bytes: number | null | undefined): string {
 }
 
 export function DokumenProgramPage() {
-  const { user } = useAuth()
-  const isKoordinator = user?.role === DUKUNGAN_AUDIT_ROLE_CODE
-  const isStaff = user?.role === DUKUNGAN_AUDIT_STAFF_ROLE_CODE
 
   const [dokumenList, setDokumenList] = useState<DokumenProgram[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -233,16 +228,14 @@ export function DokumenProgramPage() {
             Susun draf Dokumen Program (DOK PROG) untuk diperiksa dan disetujui Kepala SPI.
           </p>
         </div>
-        {isStaff && (
-          <button
-            type="button"
-            onClick={() => (showForm ? setShowForm(false) : openForm())}
-            className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-blue-800"
-          >
-            {showForm ? <X size={16} /> : <Plus size={16} />}
-            {showForm ? 'Batal' : 'Buat Draf Baru'}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => (showForm ? setShowForm(false) : openForm())}
+          className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-blue-800"
+        >
+          {showForm ? <X size={16} /> : <Plus size={16} />}
+          {showForm ? 'Batal' : 'Buat Draf Baru'}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -342,7 +335,7 @@ export function DokumenProgramPage() {
           {filteredDokumen.map((d) => {
             const isExpanded = expandedId === d.regulasiId
             const isAjukanBusy = ajukanBusyId === d.regulasiId
-            const canAjukan = isKoordinator && d.status === 'Draft'
+            const canAjukan = d.status === 'Draft'
             return (
               <div key={d.regulasiId} className="rounded-2xl bg-white shadow-sm">
                 <div className="grid w-full min-w-0 grid-cols-2 items-center gap-4 px-5 py-4 sm:grid-cols-[1.4fr_1fr_1fr_0.8fr_auto]">
@@ -413,7 +406,7 @@ export function DokumenProgramPage() {
                               <Eye size={12} />
                               Lihat
                             </button>
-                            {isStaff && d.status === 'Draft' && (
+                            {d.status === 'Draft' && (
                               <>
                                 <button
                                   type="button"
@@ -435,7 +428,7 @@ export function DokumenProgramPage() {
                             )}
                           </div>
                         </div>
-                      ) : isStaff && d.status === 'Draft' ? (
+                      ) : d.status === 'Draft' ? (
                         <button
                           type="button"
                           disabled={fileBusyId === d.regulasiId}

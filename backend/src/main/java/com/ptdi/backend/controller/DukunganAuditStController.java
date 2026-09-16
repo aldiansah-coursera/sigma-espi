@@ -22,11 +22,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Tahap 08 & 10 flowmap SIGMA v3.0 -- Dukungan Audit "Membuat &
- * Menerbitkan Draf Surat Tugas (ST)" lalu "Mendistribusikan ST ke Pihak
- * Terkait". Isi ST diambil dari PPP yang sudah disetujui Kepala SPI
- * (tahap 07), jadi tidak diketik ulang. Penandatanganannya di Kepala SPI
- * (tahap 09, lihat KepalaSpiStaController).
+ * Tahap 08 & 10 flowmap SIGMA v3.0 -- Dukungan Audit (role tunggal) membuat
+ * & mengajukan draf Surat Tugas (ST), lalu mendistribusikannya sendiri
+ * setelah ditandatangani Kepala SPI. Isi ST diambil dari PPP yang sudah
+ * disetujui Kepala SPI (tahap 07), jadi tidak diketik ulang.
+ * Penandatanganannya di Kepala SPI (tahap 09, lihat KepalaSpiStaController).
  */
 @RestController
 @RequestMapping("/api/dukungan-audit/st")
@@ -62,7 +62,6 @@ public class DukunganAuditStController {
 
     @PostMapping("/dari-ppp/{pppId}")
     public ResponseEntity<Void> createDariPpp(@PathVariable Integer pppId, @AuthenticationPrincipal Jwt jwt) {
-        staService.requireStaff(jwt);
         PenugasanPpp ppp = penugasanPppRepository.findById(pppId)
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "PPP tidak ditemukan"));
         if (!PppService.STATUS_DISETUJUI.equals(ppp.getStatus())) {
@@ -96,8 +95,7 @@ public class DukunganAuditStController {
     }
 
     @PostMapping("/{id}/ajukan")
-    public ResponseEntity<Void> ajukan(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
-        staService.requireKoordinator(jwt);
+    public ResponseEntity<Void> ajukan(@PathVariable Integer id) {
         PenugasanSta sta = staService.findOrThrow(id);
         if (!StaService.STATUS_DRAFT.equals(sta.getStatusApproval())) {
             throw new ApiException(HttpStatus.CONFLICT, "Surat Tugas hanya bisa diajukan dari status Draft");
@@ -111,7 +109,6 @@ public class DukunganAuditStController {
     /** Tahap 10: distribusi ST ke pihak terkait setelah ditandatangani Kepala SPI. */
     @PostMapping("/{id}/distribusikan")
     public ResponseEntity<Void> distribusikan(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
-        staService.requireKoordinator(jwt);
         PenugasanSta sta = staService.findOrThrow(id);
         if (!StaService.STATUS_DITANDATANGANI.equals(sta.getStatusApproval())) {
             throw new ApiException(HttpStatus.CONFLICT, "Surat Tugas hanya bisa didistribusikan setelah ditandatangani Kepala SPI");
@@ -124,8 +121,7 @@ public class DukunganAuditStController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
-        staService.requireStaff(jwt);
+    public ResponseEntity<Void> delete(@PathVariable Integer id) {
         PenugasanSta sta = staService.findOrThrow(id);
         if (!StaService.STATUS_DRAFT.equals(sta.getStatusApproval())) {
             throw new ApiException(HttpStatus.CONFLICT, "Hanya draf Surat Tugas yang bisa dihapus");

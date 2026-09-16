@@ -130,7 +130,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
                         .requestMatchers("/api/kepala-spi/**").hasAuthority("ROLE_KEPALA_SPI")
                         .requestMatchers("/api/ketua-tim/**").hasAuthority("ROLE_KETUA_TIM")
-                        .requestMatchers("/api/dukungan-audit/**").hasAnyAuthority("ROLE_DUKUNGAN_AUDIT", "ROLE_DUKUNGAN_AUDIT_STAFF")
+                        .requestMatchers("/api/dukungan-audit/**").hasAuthority("ROLE_DUKUNGAN_AUDIT")
                         .requestMatchers("/api/pengawas/**").hasAuthority("ROLE_PENGAWAS")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2

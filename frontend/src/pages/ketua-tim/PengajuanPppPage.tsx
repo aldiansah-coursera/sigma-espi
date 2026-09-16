@@ -186,7 +186,7 @@ export function PengajuanPppPage() {
 
           {objekOptions.length === 0 ? (
             <div className="mt-5 rounded-2xl bg-white px-5 py-8 text-center text-sm text-slate-400 shadow-sm">
-              Belum ada objek pengawasan yang siap diusulkan. Tunggu PKPT diterbitkan dan Dukungan Audit Staff
+              Belum ada objek pengawasan yang siap diusulkan. Tunggu PKPT diterbitkan dan Dukungan Audit
               melengkapi objek pengawasannya dulu.
             </div>
           ) : (

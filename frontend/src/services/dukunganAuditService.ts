@@ -25,15 +25,12 @@ export async function getDokumenList(): Promise<DokumenProgram[]> {
   return data
 }
 
-// Hanya bisa dipanggil "Dukungan Audit Staff" -- backend menolak dengan 403
-// kalau dipanggil koordinator ("Dukungan Audit"), yang tugasnya cuma
-// mengajukan draf yang sudah disusun staf (lihat ajukanDokumen di bawah).
 export async function createDokumen(payload: CreateDokumenProgramPayload): Promise<{ regulasiId: number }> {
   const { data } = await api.post<{ regulasiId: number }>('/api/dukungan-audit/dokumen', payload)
   return data
 }
 
-/** Unggah/ganti berkas PDF dokumen (hanya "Dukungan Audit Staff", hanya selama status Draft). */
+/** Unggah/ganti berkas PDF dokumen (hanya selama status Draft). */
 export async function uploadDokumenFile(id: number, file: File): Promise<void> {
   const formData = new FormData()
   formData.append('file', file)
@@ -65,8 +62,6 @@ export async function hapusDokumenFile(id: number): Promise<void> {
   await api.delete(`/api/dukungan-audit/dokumen/${id}/file`)
 }
 
-// Hanya bisa dipanggil user dengan role "Dukungan Audit" (koordinator) --
-// backend menolak dengan 403 kalau dipanggil oleh "Dukungan Audit Staff".
 export async function ajukanDokumen(id: number): Promise<void> {
   await api.post(`/api/dukungan-audit/dokumen/${id}/ajukan`)
 }
@@ -176,11 +171,6 @@ export async function updatePkpt(id: number, payload: PkptPayload): Promise<void
 
 export async function ajukanPkpt(id: number): Promise<void> {
   await api.post(`/api/dukungan-audit/pkpt/${id}/ajukan`)
-}
-
-/** Koordinator mengembalikan draf ke staf (dengan catatan) sebelum diajukan ke Kepala SPI. */
-export async function kembalikanPkpt(id: number, catatan: string): Promise<void> {
-  await api.post(`/api/dukungan-audit/pkpt/${id}/kembalikan`, { catatan })
 }
 
 export async function terbitkanPkpt(id: number): Promise<void> {

@@ -12,16 +12,13 @@ import {
   Send,
   Stamp,
   Trash2,
-  Undo2,
   UploadCloud,
   X,
 } from 'lucide-react'
 import { DukunganAuditShell } from '../../components/dukungan-audit/DukunganAuditShell'
 import { dukunganAuditStatusBadgeClass } from '../../components/dukungan-audit/statusBadge'
 import { StatCard } from '../../components/ui/StatCard'
-import { useAuth } from '../../context/useAuth'
 import { extractErrorMessage } from '../../lib/api'
-import { DUKUNGAN_AUDIT_ROLE_CODE, DUKUNGAN_AUDIT_STAFF_ROLE_CODE } from '../../lib/roles'
 import type { ObjekPengawasanInput, PkptItem, PkptObjekRingkas } from '../../services/dukunganAuditService'
 import {
   PRIORITAS_RISIKO_OPTIONS,
@@ -33,7 +30,6 @@ import {
   hapusObjekPkpt,
   hapusPkptDraft,
   hapusPkptFile,
-  kembalikanPkpt,
   tambahObjekPkpt,
   terbitkanPkpt,
   ubahObjekPkpt,
@@ -72,9 +68,6 @@ function emptyObjekRow(defaultUnit: string): ObjekPengawasanInput {
  * Kepala SPI memeriksa & mengesahkan, Dukungan Audit yang menerbitkannya.
  */
 export function DataPkptPage() {
-  const { user } = useAuth()
-  const isKoordinator = user?.role === DUKUNGAN_AUDIT_ROLE_CODE
-  const isStaff = user?.role === DUKUNGAN_AUDIT_STAFF_ROLE_CODE
 
   const [pkptList, setPkptList] = useState<PkptItem[]>([])
   const [units, setUnits] = useState<string[]>([])
@@ -218,16 +211,6 @@ export function DataPkptPage() {
     await runAction(p.pkptId, hapusPkptDraft, 'Gagal menghapus draf PKPT.')
   }
 
-  /** Koordinator mengembalikan draf ke staf dengan catatan, sebelum diajukan ke Kepala SPI. */
-  async function handleKembalikan(p: PkptItem) {
-    const catatan = window.prompt(`Catatan revisi untuk draf "${p.namaPkpt}":`, '')
-    if (catatan === null) return
-    if (!catatan.trim()) {
-      window.alert('Catatan revisi wajib diisi.')
-      return
-    }
-    await runAction(p.pkptId, (id) => kembalikanPkpt(id, catatan.trim()), 'Gagal mengembalikan draf PKPT.')
-  }
 
   function openAddObjek(pkptId: number) {
     setAddObjekOpenId(pkptId)
@@ -368,16 +351,14 @@ export function DataPkptPage() {
             Susun draf Program Kerja Pengawasan Tahunan, ajukan ke Kepala SPI, lalu terbitkan setelah disahkan.
           </p>
         </div>
-        {isStaff && (
-          <button
-            type="button"
-            onClick={() => (showForm ? setShowForm(false) : openForm())}
-            className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-blue-800"
-          >
-            {showForm ? <X size={16} /> : <Plus size={16} />}
-            {showForm ? 'Batal' : 'Susun Draf PKPT'}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => (showForm ? setShowForm(false) : openForm())}
+          className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-blue-800"
+        >
+          {showForm ? <X size={16} /> : <Plus size={16} />}
+          {showForm ? 'Batal' : 'Susun Draf PKPT'}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -536,43 +517,27 @@ export function DataPkptPage() {
                   <div className="flex items-center justify-end gap-2">
                     {p.status === 'Draft' && (
                       <>
-                        {isKoordinator && (
-                          <>
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() => void handleKembalikan(p)}
-                              title="Kembalikan ke staf dengan catatan"
-                              className="flex items-center gap-1 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <Undo2 size={13} />
-                              Kembalikan
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() => void runAction(p.pkptId, ajukanPkpt, 'Gagal mengajukan PKPT.')}
-                              className="flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <Send size={13} />
-                              Ajukan
-                            </button>
-                          </>
-                        )}
-                        {isStaff && (
-                          <button
-                            type="button"
-                            disabled={isBusy}
-                            onClick={() => void handleHapus(p)}
-                            title="Hapus draf"
-                            className="flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => void runAction(p.pkptId, ajukanPkpt, 'Gagal mengajukan PKPT.')}
+                          className="flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Send size={13} />
+                          Ajukan
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => void handleHapus(p)}
+                          title="Hapus draf"
+                          className="flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </>
                     )}
-                    {p.status === 'Approved' && isKoordinator && (
+                    {p.status === 'Approved' && (
                       <button
                         type="button"
                         disabled={isBusy}
@@ -631,7 +596,7 @@ export function DataPkptPage() {
                               <Eye size={12} />
                               Lihat
                             </button>
-                            {isStaff && p.status === 'Draft' && (
+                            {p.status === 'Draft' && (
                               <>
                                 <button
                                   type="button"
@@ -653,7 +618,7 @@ export function DataPkptPage() {
                             )}
                           </div>
                         </div>
-                      ) : isStaff && p.status === 'Draft' ? (
+                      ) : p.status === 'Draft' ? (
                         <button
                           type="button"
                           disabled={fileBusyId === p.pkptId}
@@ -673,7 +638,7 @@ export function DataPkptPage() {
                         <div className="text-xs font-semibold uppercase tracking-wide text-blue-900/50">
                           Objek Pengawasan ({p.totalObjek})
                         </div>
-                        {isStaff && p.status === 'Diterbitkan' && addObjekOpenId !== p.pkptId && (
+                        {p.status === 'Diterbitkan' && addObjekOpenId !== p.pkptId && (
                           <button
                             type="button"
                             onClick={() => openAddObjek(p.pkptId)}
@@ -684,7 +649,7 @@ export function DataPkptPage() {
                           </button>
                         )}
                       </div>
-                      {isStaff && p.status !== 'Diterbitkan' && (
+                      {p.status !== 'Diterbitkan' && (
                         <p className="mt-1 text-xs text-slate-400">
                           Objek pengawasan bisa ditambahkan setelah PKPT ini diterbitkan.
                         </p>
@@ -764,7 +729,7 @@ export function DataPkptPage() {
                               <span className="truncate text-slate-700">{o.unitKerja}</span>
                               <span className="truncate text-slate-600">{o.jenisPengawasan}</span>
                               <span className="truncate text-xs text-slate-500">Risiko: {o.prioritasRisiko}</span>
-                              {isStaff && p.status === 'Diterbitkan' && (
+                              {p.status === 'Diterbitkan' && (
                                 <div className="flex items-center justify-end gap-1.5">
                                   <button
                                     type="button"

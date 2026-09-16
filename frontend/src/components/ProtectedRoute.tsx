@@ -6,7 +6,7 @@ interface ProtectedRouteProps {
   children: ReactNode
   // String tunggal (role harus persis sama) atau array (role user harus
   // salah satu dari daftar ini) -- dipakai utk rute yang boleh diakses
-  // lebih dari 1 role, mis. Dukungan Audit & Dukungan Audit Staff.
+  // lebih dari 1 role.
   requireRole?: string | string[]
 }
 

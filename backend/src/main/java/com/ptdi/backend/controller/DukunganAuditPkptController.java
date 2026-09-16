@@ -1,6 +1,5 @@
 package com.ptdi.backend.controller;
 
-import com.ptdi.backend.dto.CatatanRevisiRequest;
 import com.ptdi.backend.dto.CreatePkptRequest;
 import com.ptdi.backend.dto.ObjekPengawasanInput;
 import com.ptdi.backend.dto.ObjekPengawasanResponse;
@@ -35,19 +34,19 @@ import java.util.Map;
 
 /**
  * Tahap 05 flowmap SIGMA v3.0 -- Dukungan Audit "Menyediakan & Mengelola
- * Data PKPT (Rencana Tahunan)". Pembagian kerjanya sesuai arahan klien:
- * Dukungan Audit MENYUSUN DRAF dan MENERBITKAN, Kepala SPI yang
+ * Data PKPT (Rencana Tahunan)". Role "Dukungan Audit" dan "Dukungan Audit
+ * Staff" sudah DIGABUNG jadi satu role (atas permintaan pengguna) -- tidak
+ * ada lagi gerbang internal staf vs koordinator, siapa pun dengan role ini
+ * bebas menyusun draf, mengajukan, dan menerbitkan sendiri. Kepala SPI yang
  * memeriksa (Checked) lalu mengesahkan (Approved) -- lihat
  * KepalaSpiPkptController.
  *
  * Status: Draft -> Diajukan -> Checked -> Approved -> Diterbitkan.
- * Kalau Kepala SPI mengembalikan, status balik ke Draft + catatan revisi --
- * begitu juga kalau koordinator (Dukungan Audit) mengembalikan draf ke staf
- * sebelum sempat diajukan ke Kepala SPI (lihat endpoint kembalikan()).
+ * Kalau Kepala SPI mengembalikan, status balik ke Draft + catatan revisi.
  *
- * Objek pengawasan TIDAK lagi diisi saat menyusun draf -- staf baru
- * melengkapinya setelah PKPT berstatus Diterbitkan, sebagai bahan Ketua
- * Tim mengusulkan PPP (lihat endpoint .../objek di bawah).
+ * Objek pengawasan TIDAK lagi diisi saat menyusun draf -- baru dilengkapi
+ * setelah PKPT berstatus Diterbitkan, sebagai bahan Ketua Tim mengusulkan
+ * PPP (lihat endpoint .../objek di bawah).
  */
 @RestController
 @RequestMapping("/api/dukungan-audit/pkpt")
@@ -59,8 +58,7 @@ public class DukunganAuditPkptController {
     public static final String STATUS_CHECKED = "Checked";
     public static final String STATUS_APPROVED = "Approved";
     public static final String STATUS_DITERBITKAN = "Diterbitkan";
-    private static final String ROLE_DUKUNGAN_AUDIT_KOORDINATOR = "Dukungan Audit";
-    private static final String ROLE_DUKUNGAN_AUDIT_STAFF = "Dukungan Audit Staff";
+
 
     private final PkptRepository pkptRepository;
     private final ObjekPengawasanRepository objekPengawasanRepository;
@@ -87,7 +85,6 @@ public class DukunganAuditPkptController {
 
     @PostMapping
     public ResponseEntity<Map<String, Integer>> create(@RequestBody CreatePkptRequest request, @AuthenticationPrincipal Jwt jwt) {
-        requireStaff(jwt);
         validate(request);
 
         Pkpt pkpt = Pkpt.builder()
@@ -103,10 +100,9 @@ public class DukunganAuditPkptController {
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("pkptId", pkpt.getPkptId()));
     }
 
-    /** Ubah isi draf selama statusnya masih Draft (termasuk setelah dikembalikan koordinator/Kepala SPI). */
+    /** Ubah isi draf selama statusnya masih Draft (termasuk setelah dikembalikan Kepala SPI). */
     @PutMapping("/{id}")
-    public ResponseEntity<Void> update(@PathVariable Integer id, @RequestBody CreatePkptRequest request, @AuthenticationPrincipal Jwt jwt) {
-        requireStaff(jwt);
+    public ResponseEntity<Void> update(@PathVariable Integer id, @RequestBody CreatePkptRequest request) {
         validate(request);
         Pkpt pkpt = findOrThrow(id);
         if (!STATUS_DRAFT.equals(pkpt.getStatus())) {
@@ -123,8 +119,7 @@ public class DukunganAuditPkptController {
     }
 
     @PostMapping("/{id}/ajukan")
-    public ResponseEntity<Void> ajukan(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
-        requireKoordinator(jwt);
+    public ResponseEntity<Void> ajukan(@PathVariable Integer id) {
         Pkpt pkpt = findOrThrow(id);
         if (!STATUS_DRAFT.equals(pkpt.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "PKPT hanya bisa diajukan dari status Draft");
@@ -135,31 +130,9 @@ public class DukunganAuditPkptController {
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * Koordinator (Dukungan Audit) mengembalikan draf ke staf dengan catatan
-     * SEBELUM diajukan ke Kepala SPI -- staf yang mengedit ulang lewat
-     * update(), lalu koordinator memanggil ajukan() lagi kalau sudah oke.
-     */
-    @PostMapping("/{id}/kembalikan")
-    public ResponseEntity<Void> kembalikan(@PathVariable Integer id, @RequestBody(required = false) CatatanRevisiRequest request,
-                                           @AuthenticationPrincipal Jwt jwt) {
-        requireKoordinator(jwt);
-        Pkpt pkpt = findOrThrow(id);
-        if (!STATUS_DRAFT.equals(pkpt.getStatus())) {
-            throw new ApiException(HttpStatus.CONFLICT, "PKPT hanya bisa dikembalikan ke staf selama masih berstatus Draft");
-        }
-        pkpt.setStatus(STATUS_DRAFT);
-        pkpt.setCatatanRevisi(request != null && StringUtils.hasText(request.getCatatan())
-                ? request.getCatatan().trim()
-                : "Dikembalikan Dukungan Audit untuk diperbaiki.");
-        pkptRepository.save(pkpt);
-        return ResponseEntity.ok().build();
-    }
-
     /** Tahap akhir 05: setelah disahkan Kepala SPI, Dukungan Audit yang menerbitkan. */
     @PostMapping("/{id}/terbitkan")
     public ResponseEntity<Void> terbitkan(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
-        requireKoordinator(jwt);
         Pkpt pkpt = findOrThrow(id);
         if (!STATUS_APPROVED.equals(pkpt.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "PKPT hanya bisa diterbitkan setelah disahkan Kepala SPI");
@@ -172,8 +145,7 @@ public class DukunganAuditPkptController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
-        requireStaff(jwt);
+    public ResponseEntity<Void> delete(@PathVariable Integer id) {
         Pkpt pkpt = findOrThrow(id);
         if (!STATUS_DRAFT.equals(pkpt.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "Hanya draf yang bisa dihapus");
@@ -187,13 +159,11 @@ public class DukunganAuditPkptController {
     }
 
     /**
-     * Unggah (atau ganti) berkas PDF pendukung draf PKPT. Bisa dipanggil
-     * Dukungan Audit maupun Dukungan Audit Staff (sama seperti izin
-     * membuat/mengubah draf) -- hanya diizinkan selama status masih Draft.
+     * Unggah (atau ganti) berkas PDF pendukung draf PKPT -- hanya diizinkan
+     * selama status masih Draft.
      */
     @PostMapping("/{id}/file")
-    public ResponseEntity<Void> uploadFile(@PathVariable Integer id, @RequestParam("file") MultipartFile file, @AuthenticationPrincipal Jwt jwt) {
-        requireStaff(jwt);
+    public ResponseEntity<Void> uploadFile(@PathVariable Integer id, @RequestParam("file") MultipartFile file) {
         Pkpt pkpt = findOrThrow(id);
         if (!STATUS_DRAFT.equals(pkpt.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "Berkas hanya bisa diunggah/diganti selama PKPT berstatus Draft");
@@ -217,8 +187,7 @@ public class DukunganAuditPkptController {
     }
 
     @DeleteMapping("/{id}/file")
-    public ResponseEntity<Void> deleteFile(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
-        requireStaff(jwt);
+    public ResponseEntity<Void> deleteFile(@PathVariable Integer id) {
         Pkpt pkpt = findOrThrow(id);
         if (!STATUS_DRAFT.equals(pkpt.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "Berkas hanya bisa dihapus selama PKPT berstatus Draft");
@@ -280,9 +249,7 @@ public class DukunganAuditPkptController {
      * (lihat KetuaTimPppController.getObjekOptions()).
      */
     @PostMapping("/{id}/objek")
-    public ResponseEntity<Void> tambahObjek(@PathVariable Integer id, @RequestBody ObjekPengawasanInput request,
-                                            @AuthenticationPrincipal Jwt jwt) {
-        requireStaff(jwt);
+    public ResponseEntity<Void> tambahObjek(@PathVariable Integer id, @RequestBody ObjekPengawasanInput request) {
         Pkpt pkpt = findOrThrow(id);
         if (!STATUS_DITERBITKAN.equals(pkpt.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "Objek pengawasan hanya bisa ditambahkan setelah PKPT diterbitkan");
@@ -293,8 +260,7 @@ public class DukunganAuditPkptController {
 
     @PutMapping("/{id}/objek/{objekId}")
     public ResponseEntity<Void> ubahObjek(@PathVariable Integer id, @PathVariable Integer objekId,
-                                          @RequestBody ObjekPengawasanInput request, @AuthenticationPrincipal Jwt jwt) {
-        requireStaff(jwt);
+                                          @RequestBody ObjekPengawasanInput request) {
         Pkpt pkpt = findOrThrow(id);
         ObjekPengawasan objek = findObjekOrThrow(pkpt, objekId);
         if (sudahDipakaiPpp(objekId)) {
@@ -311,9 +277,7 @@ public class DukunganAuditPkptController {
     }
 
     @DeleteMapping("/{id}/objek/{objekId}")
-    public ResponseEntity<Void> hapusObjek(@PathVariable Integer id, @PathVariable Integer objekId,
-                                           @AuthenticationPrincipal Jwt jwt) {
-        requireStaff(jwt);
+    public ResponseEntity<Void> hapusObjek(@PathVariable Integer id, @PathVariable Integer objekId) {
         Pkpt pkpt = findOrThrow(id);
         ObjekPengawasan objek = findObjekOrThrow(pkpt, objekId);
         if (sudahDipakaiPpp(objekId)) {
@@ -365,34 +329,6 @@ public class DukunganAuditPkptController {
     private User currentUser(Jwt jwt) {
         return userRepository.findByEmail(jwt.getSubject())
                 .orElseThrow(() -> new UsernameNotFoundException("User tidak ditemukan"));
-    }
-
-    /**
-     * Hanya "Dukungan Audit" (koordinator) yang boleh mengajukan PKPT ke
-     * Kepala SPI dan menerbitkan PKPT yang sudah disahkan -- staf
-     * ("Dukungan Audit Staff") hanya boleh menyusun/mengubah/menghapus draf.
-     */
-    private void requireKoordinator(Jwt jwt) {
-        User current = currentUser(jwt);
-        boolean isKoordinator = current.getRole() != null
-                && ROLE_DUKUNGAN_AUDIT_KOORDINATOR.equals(current.getRole().getNamaRole());
-        if (!isKoordinator) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Hanya Dukungan Audit (koordinator) yang bisa mengajukan/menerbitkan PKPT");
-        }
-    }
-
-    /**
-     * Menyusun/mengubah/menghapus draf (termasuk berkas PDF-nya) hanya
-     * boleh "Dukungan Audit Staff" -- koordinator ("Dukungan Audit") murni
-     * bertugas mengajukan & menerbitkan (lihat requireKoordinator di atas).
-     */
-    private void requireStaff(Jwt jwt) {
-        User current = currentUser(jwt);
-        boolean isStaff = current.getRole() != null
-                && ROLE_DUKUNGAN_AUDIT_STAFF.equals(current.getRole().getNamaRole());
-        if (!isStaff) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Hanya Dukungan Audit Staff yang bisa menyusun/mengubah draf PKPT");
-        }
     }
 
     /**

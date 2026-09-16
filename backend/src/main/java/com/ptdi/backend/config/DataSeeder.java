@@ -27,7 +27,7 @@ import java.util.List;
 public class DataSeeder implements CommandLineRunner {
 
     private static final List<String> ROLE_NAMES = List.of(
-            "Admin", "Auditor", "Ketua Tim", "Kepala SPI", "Pengawas", "Tim Jaminan Kualitas", "Auditee", "Dukungan Audit", "Dukungan Audit Staff"
+            "Admin", "Auditor", "Ketua Tim", "Kepala SPI", "Pengawas", "Tim Jaminan Kualitas", "Auditee", "Dukungan Audit"
     );
 
     // Nama role lama yang berubah nama setelah masukan review klien --
@@ -44,11 +44,12 @@ public class DataSeeder implements CommandLineRunner {
     // DukunganAuditDokumenController & KepalaSpiDokumenController.
     private static final String NEW_ROLE_DUKUNGAN_AUDIT = "Dukungan Audit";
 
-    // "Dukungan Audit Staff" -- tingkatan di bawah "Dukungan Audit": staf
-    // cuma bisa menyusun draf Dokumen Program, TIDAK bisa mengajukannya ke
-    // Kepala SPI (hanya role "Dukungan Audit" / koordinator yang bisa
-    // mengajukan). Lihat DukunganAuditDokumenController.ajukan().
-    private static final String NEW_ROLE_DUKUNGAN_AUDIT_STAFF = "Dukungan Audit Staff";
+    // "Dukungan Audit Staff" -- role lama yang sekarang DIGABUNG kembali ke
+    // "Dukungan Audit" atas permintaan pengguna (satu role saja yang
+    // menangani seluruh proses input & output Dukungan Audit, termasuk
+    // penugasannya) -- lihat migrasi di bawah yang memindah usernya lalu
+    // menghapus role ini.
+    private static final String OLD_ROLE_DUKUNGAN_AUDIT_STAFF = "Dukungan Audit Staff";
 
     // Contoh Unit Kerja — silakan tambah/ubah daftar ini sesuai struktur
     // organisasi PTDI yang sebenarnya. "Kantor Pusat" dipertahankan sebagai
@@ -103,11 +104,27 @@ public class DataSeeder implements CommandLineRunner {
                 roleRepository.save(Role.builder().namaRole(NEW_ROLE_DUKUNGAN_AUDIT).build());
             }
 
-            boolean dukunganAuditStaffSudahAda = existingRoles.stream()
-                    .anyMatch(r -> NEW_ROLE_DUKUNGAN_AUDIT_STAFF.equals(r.getNamaRole()));
-            if (!dukunganAuditStaffSudahAda) {
-                roleRepository.save(Role.builder().namaRole(NEW_ROLE_DUKUNGAN_AUDIT_STAFF).build());
-            }
+            // Migrasi penggabungan role (atas permintaan pengguna): kalau role
+            // lama "Dukungan Audit Staff" masih ada, pindahkan semua usernya
+            // ke "Dukungan Audit" lalu hapus role lama itu -- idempotent,
+            // begitu sudah tergabung sekali, blok ini tidak menemukan apa-apa
+            // lagi di restart berikutnya.
+            existingRoles.stream()
+                    .filter(r -> OLD_ROLE_DUKUNGAN_AUDIT_STAFF.equals(r.getNamaRole()))
+                    .findFirst()
+                    .ifPresent(staffRole -> {
+                        Role koordinatorRole = existingRoles.stream()
+                                .filter(r -> NEW_ROLE_DUKUNGAN_AUDIT.equals(r.getNamaRole()))
+                                .findFirst()
+                                .orElseGet(() -> roleRepository.save(Role.builder().namaRole(NEW_ROLE_DUKUNGAN_AUDIT).build()));
+                        userRepository.findAll().stream()
+                                .filter(u -> u.getRole() != null && staffRole.getRoleId().equals(u.getRole().getRoleId()))
+                                .forEach(u -> {
+                                    u.setRole(koordinatorRole);
+                                    userRepository.save(u);
+                                });
+                        roleRepository.delete(staffRole);
+                    });
         }
 
         List<String> existingUnitNames = unitRepository.findAll().stream()
